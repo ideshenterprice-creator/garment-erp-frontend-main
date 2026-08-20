@@ -1,36 +1,146 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FabricFlow ERP — Frontend
+
+Frontend application for **FabricFlow**, an industrial ERP built for garment manufacturing operations — from masters and purchase through inventory, production, boxing, sales, and accounts.
+
+## Tech Stack
+
+| Layer | Choice |
+|-------|--------|
+| Framework | [Next.js 14](https://nextjs.org/) (App Router) |
+| Language | TypeScript (strict) |
+| Styling | Tailwind CSS + [shadcn/ui](https://ui.shadcn.com/) |
+| Forms | React Hook Form + Zod |
+| Data fetching | TanStack Query (wired for API; modules currently use mock data) |
+| Tables | TanStack Table |
+| State | Zustand |
+| HTTP | Axios |
+| Icons | Lucide React |
+| Toasts | Sonner |
+| Dates | date-fns |
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+ (recommended)
+- npm 9+
+
+### Install
+
+```bash
+npm install
+```
+
+### Environment
+
+Copy the example env file and adjust the API base URL when the backend is available:
+
+```bash
+cp .env.example .env.local
+```
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5000/api
+```
+
+### Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Other scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build   # Production build
+npm run start   # Start production server
+npm run lint    # ESLint
+```
 
-## Learn More
+## Temporary login (development)
 
-To learn more about Next.js, take a look at the following resources:
+Auth is currently local/temp until the real auth API is connected.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Field | Value |
+|-------|--------|
+| Email | `abhishek@gmail.com` |
+| Password | `12345678` |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Successful login sets a client auth store and cookie (`ff_auth`), then redirects into the dashboard. Middleware protects dashboard routes.
 
-## Deploy on Vercel
+## Modules
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Implemented (UI + mock data)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Module | Routes | Notes |
+|--------|--------|--------|
+| **Masters** | `/masters/party`, `/product`, `/operations`, `/gst`, `/karigar` | Parties, products, rates, GST, karigars |
+| **Purchase Orders** | `/purchase-orders`, `/new`, `/[id]` | List, create, detail |
+| **Purchase** | `/purchase/bills`, `/register` | Bills + purchase register |
+| **Inventory** | `/inventory/stock`, `/issue/new`, `/issue/history`, `/wastage` | Stock, issue, wastage |
+| **Production** | `/production`, `/production/bundles/[bundleNumber]` | 5 stage tabs + bundle tracking |
+
+### Scaffolded (routes / placeholders)
+
+Boxing & Dispatch, Sales, Accounts, and Team Management appear in the sidebar with route shells; full UI is pending.
+
+## Project structure
+
+```
+src/
+├── app/
+│   ├── (auth)/                 # Login, accept invite
+│   ├── (dashboard)/            # Authenticated ERP pages
+│   ├── layout.tsx
+│   └── globals.css
+├── components/
+│   ├── common/                 # PageHeader, Pagination, EmptyState, drawers…
+│   ├── layout/                 # Sidebar, Topbar, MobileSidebar
+│   ├── modules/                # Feature UI (masters, purchase, inventory…)
+│   └── ui/                     # shadcn primitives
+├── constants/                  # routes, sidebarConfig, queryKeys
+├── hooks/
+├── lib/                        # axios, queryClient, utils
+├── mock/                       # Mock datasets (replace with API)
+├── providers/
+├── services/                   # API service stubs
+├── store/                      # Zustand stores
+└── types/                      # Shared TypeScript types
+```
+
+Path alias: `@/*` → `src/*`
+
+## Architecture notes
+
+- **App Router** with route groups `(auth)` and `(dashboard)`.
+- Feature UI lives under `src/components/modules/<module>/`.
+- Pages stay thin: load mock (later TanStack Query), compose module components.
+- Mock blocks are marked with TODOs pointing at the future service + query key, e.g.:
+
+  ```ts
+  // TODO: Replace with TanStack Query API call
+  // Service: src/services/inventory.service.ts
+  // Query key: QUERY_KEYS.STOCK
+  ```
+
+- Forms use **Zod** schemas and **Sonner** toasts for success/error feedback.
+- Shared patterns: loading skeletons, empty states, drawer forms, status badges, pagination.
+
+## Design system
+
+- Primary actions: dark teal (`#1b3a3a`)
+- Sidebar: dark charcoal/teal with amber/gold active accents
+- Tables, filters, and drawers follow shadcn/ui patterns used across Masters → Production
+
+## Roadmap (frontend)
+
+1. Wire modules to the real API via `src/services/*` and TanStack Query
+2. Replace temporary login with backend auth
+3. Complete Boxing, Sales, Accounts, and Team UIs
+4. Harden role-based access (Admin vs Team Member)
+
+## License
+
+Private project — all rights reserved.

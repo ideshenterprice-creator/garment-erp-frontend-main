@@ -35,7 +35,7 @@ export default function InventoryStockPage() {
   }, []);
 
   const filtered = useMemo(() => {
-    let next =
+    const next =
       filter === "ALL"
         ? [...items]
         : items.filter((item) => item.product.category === filter);

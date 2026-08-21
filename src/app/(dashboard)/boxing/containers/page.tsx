@@ -1,8 +1,6 @@
-﻿export default function Page() {
-  return (
-    <div>
-      <h1>Containers</h1>
-      <p>Page coming soon</p>
-    </div>
-  );
+﻿import { redirect } from "next/navigation";
+import { ROUTES } from "@/constants/routes";
+
+export default function ContainersRedirectPage() {
+  redirect(ROUTES.BOXING.BOXES);
 }

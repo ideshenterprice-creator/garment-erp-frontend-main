@@ -147,7 +147,7 @@ export function NewPOForm() {
     return Object.keys(nextErrors).length === 0;
   }
 
-  function onSubmit(_values: POFormValues) {
+  function onSubmit() {
     if (!validateItems()) return;
     toast.success("Purchase Order created successfully");
     router.push(ROUTES.PURCHASE_ORDERS.ROOT);

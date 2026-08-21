@@ -60,10 +60,6 @@ export const sidebarConfig: SidebarItem[] = [
     label: "Boxing & Dispatch",
     href: ROUTES.BOXING.BOXES,
     icon: "Box",
-    subItems: [
-      { label: "Box Packing", href: ROUTES.BOXING.BOXES },
-      { label: "Containers", href: ROUTES.BOXING.CONTAINERS },
-    ],
   },
   {
     label: "Sales",

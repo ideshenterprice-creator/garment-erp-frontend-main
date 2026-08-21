@@ -1,6 +1,5 @@
 "use client";
 
-import { Eye } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import type { MockFinishingEntry } from "@/mock/production";

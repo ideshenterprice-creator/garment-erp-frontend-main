@@ -1,8 +1,13 @@
-﻿export default function Page() {
+﻿"use client";
+
+import { Suspense } from "react";
+import { TableSkeleton } from "@/components/common/LoadingSpinner";
+import { NewSalesBillForm } from "@/components/modules/sales/NewSalesBillForm";
+
+export default function NewSalesBillPage() {
   return (
-    <div>
-      <h1>New Sales Bill</h1>
-      <p>Page coming soon</p>
-    </div>
+    <Suspense fallback={<TableSkeleton rows={8} />}>
+      <NewSalesBillForm />
+    </Suspense>
   );
 }

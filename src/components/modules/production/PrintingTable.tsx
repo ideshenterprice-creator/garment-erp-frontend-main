@@ -1,11 +1,9 @@
 "use client";
 
-import { Eye } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import type { MockPrintingEntry } from "@/mock/production";
 import { EmptyState } from "@/components/common/EmptyState";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -29,7 +27,7 @@ export function PrintingTable({ entries, onAdd }: PrintingTableProps) {
       <EmptyState
         title="No printing entries found"
         description="Record a printing entry after cutting is complete."
-        actionLabel="+ Record Printing Entry"
+        actionLabel="Record Printing Entry"
         onAction={onAdd}
       />
     );
@@ -68,14 +66,17 @@ export function PrintingTable({ entries, onAdd }: PrintingTableProps) {
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Karigar
               </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Actions
-              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {entries.map((entry) => (
-              <TableRow key={entry.id}>
+              <TableRow
+                key={entry.id}
+                className="cursor-pointer"
+                onClick={() =>
+                  router.push(ROUTES.PRODUCTION.BUNDLE_DETAIL(entry.bundleNumber))
+                }
+              >
                 <TableCell className="font-semibold text-slate-900">
                   {entry.entryNumber}
                 </TableCell>
@@ -95,21 +96,6 @@ export function PrintingTable({ entries, onAdd }: PrintingTableProps) {
                   {entry.piecesRejected.toLocaleString("en-IN")} pcs
                 </TableCell>
                 <TableCell>{entry.karigarName}</TableCell>
-                <TableCell>
-                  <Button
-                    type="button"
-                    variant="link"
-                    className="h-auto p-0 text-teal-700"
-                    onClick={() =>
-                      router.push(
-                        ROUTES.PRODUCTION.BUNDLE_DETAIL(entry.bundleNumber)
-                      )
-                    }
-                  >
-                    <Eye className="mr-1 size-3.5" />
-                    View
-                  </Button>
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>

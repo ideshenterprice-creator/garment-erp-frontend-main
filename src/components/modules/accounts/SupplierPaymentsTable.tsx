@@ -1,6 +1,5 @@
 "use client";
 
-import { Eye } from "lucide-react";
 import { format } from "date-fns";
 import type { MockSupplierPayment } from "@/mock/accounts";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -19,13 +18,13 @@ import { cn, formatCurrency } from "@/lib/utils";
 interface SupplierPaymentsTableProps {
   payments: MockSupplierPayment[];
   onPay: (payment: MockSupplierPayment) => void;
-  onView: (payment: MockSupplierPayment) => void;
+  onRowClick?: (payment: MockSupplierPayment) => void;
 }
 
 export function SupplierPaymentsTable({
   payments,
   onPay,
-  onView,
+  onRowClick,
 }: SupplierPaymentsTableProps) {
   if (payments.length === 0) {
     return (
@@ -70,7 +69,11 @@ export function SupplierPaymentsTable({
           </TableHeader>
           <TableBody>
             {payments.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow
+                key={row.id}
+                className={onRowClick ? "cursor-pointer" : undefined}
+                onClick={() => onRowClick?.(row)}
+              >
                 <TableCell className="font-semibold">{row.billNo}</TableCell>
                 <TableCell>{row.supplierName}</TableCell>
                 <TableCell>
@@ -90,37 +93,35 @@ export function SupplierPaymentsTable({
                   <SupplierPaymentStatusBadge status={row.status} />
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    {row.status === "UNPAID" ? (
-                      <Button
-                        type="button"
-                        variant="link"
-                        className="h-auto p-0 text-teal-700"
-                        onClick={() => onPay(row)}
-                      >
-                        Pay Now
-                      </Button>
-                    ) : null}
-                    {row.status === "PARTIAL" ? (
-                      <Button
-                        type="button"
-                        variant="link"
-                        className="h-auto p-0 text-teal-700"
-                        onClick={() => onPay(row)}
-                      >
-                        Pay Remaining
-                      </Button>
-                    ) : null}
+                  {row.status === "UNPAID" ? (
                     <Button
                       type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      onClick={() => onView(row)}
+                      variant="link"
+                      className="h-auto p-0 text-teal-700"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onPay(row);
+                      }}
                     >
-                      <Eye className="size-4" />
+                      Pay Now
                     </Button>
-                  </div>
+                  ) : null}
+                  {row.status === "PARTIAL" ? (
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="h-auto p-0 text-teal-700"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onPay(row);
+                      }}
+                    >
+                      Pay Remaining
+                    </Button>
+                  ) : null}
+                  {row.status === "PAID" ? (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  ) : null}
                 </TableCell>
               </TableRow>
             ))}

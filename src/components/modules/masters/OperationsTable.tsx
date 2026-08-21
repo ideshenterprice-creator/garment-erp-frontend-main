@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import type { MockOperation } from "@/mock/masters";
 import { StatusBadge } from "@/components/common/StatusBadge";
@@ -18,6 +18,7 @@ import {
 interface OperationsTableProps {
   operations: MockOperation[];
   onEdit: (operation: MockOperation) => void;
+  onDelete: (operation: MockOperation) => void;
   onAdd?: () => void;
 }
 
@@ -43,6 +44,7 @@ function stageLabel(stage: MockOperation["stage"]) {
 export function OperationsTable({
   operations,
   onEdit,
+  onDelete,
   onAdd,
 }: OperationsTableProps) {
   if (operations.length === 0) {
@@ -102,15 +104,26 @@ export function OperationsTable({
                   {format(new Date(operation.lastUpdated), "MMM dd, yyyy")}
                 </TableCell>
                 <TableCell>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8"
-                    onClick={() => onEdit(operation)}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
+                  <div className="flex items-center gap-0.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      onClick={() => onEdit(operation)}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-red-500 hover:bg-red-50"
+                      onClick={() => onDelete(operation)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

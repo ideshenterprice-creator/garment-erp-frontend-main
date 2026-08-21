@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   mockStockItems,
@@ -17,9 +17,8 @@ import {
   type StockFilterTab,
 } from "@/components/modules/inventory/StockFilterBar";
 import { StockTable } from "@/components/modules/inventory/StockTable";
-import { Button } from "@/components/ui/button";
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 10;
 
 export default function InventoryStockPage() {
   const [loading, setLoading] = useState(true);
@@ -64,21 +63,15 @@ export default function InventoryStockPage() {
         title="Inventory — Stock"
         subtitle="Live stock of all fabric, accessories and finished goods. Updates automatically on every purchase, issue and production entry."
         actionButton={
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" className="border-slate-200">
-              <Download className="size-4" />
-              Export PDF
-            </Button>
-            <PageHeaderAction
-              label="+ Add Entry"
-              icon={<Plus className="size-4" />}
-              onClick={() =>
-                toast.message("Add Entry", {
-                  description: "Stock entry form will connect to the inventory API.",
-                })
-              }
-            />
-          </div>
+          <PageHeaderAction
+            label="Add Entry"
+            icon={<Plus className="size-4" />}
+            onClick={() =>
+              toast.message("Add Entry", {
+                description: "Stock entry form will connect to the inventory API.",
+              })
+            }
+          />
         }
       />
 
@@ -101,11 +94,6 @@ export default function InventoryStockPage() {
         <>
           <StockTable
             items={pageItems}
-            onViewHistory={(item) =>
-              toast.message("Stock history", {
-                description: `Movement history for ${item.product.name}.`,
-              })
-            }
             onAdjust={setAdjustTarget}
             onAdd={() =>
               toast.message("Add Entry", {

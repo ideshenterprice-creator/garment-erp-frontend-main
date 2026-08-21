@@ -2,12 +2,12 @@ import type { SizeBreakdown } from "@/mock/production";
 import { cn } from "@/lib/utils";
 
 const chipLabels: { key: keyof SizeBreakdown; label: string }[] = [
-  { key: "qty_0_3M", label: "S" },
-  { key: "qty_3_6M", label: "M" },
-  { key: "qty_6_9M", label: "L" },
-  { key: "qty_9_12M", label: "XL" },
-  { key: "qty_12_18M", label: "2XL" },
-  { key: "qty_18_24M", label: "3XL" },
+  { key: "qty_0_3M", label: "0-3M" },
+  { key: "qty_3_6M", label: "3-6M" },
+  { key: "qty_6_9M", label: "6-9M" },
+  { key: "qty_9_12M", label: "9-12M" },
+  { key: "qty_12_18M", label: "12-18M" },
+  { key: "qty_18_24M", label: "18-24M" },
 ];
 
 interface SizeBreakdownChipsProps {

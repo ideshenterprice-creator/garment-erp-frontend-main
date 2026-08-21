@@ -1,6 +1,5 @@
 "use client";
 
-import { Eye } from "lucide-react";
 import { accountsParties } from "@/mock/accounts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,7 +84,6 @@ export function AccountStatementFilter({
           onClick={onShow}
           className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
         >
-          <Eye className="size-4" />
           Show Statement
         </Button>
       </div>

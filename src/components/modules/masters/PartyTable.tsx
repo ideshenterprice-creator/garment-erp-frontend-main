@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { Party } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -18,6 +18,7 @@ interface PartyTableProps {
   parties: Party[];
   onRowClick: (party: Party) => void;
   onEdit: (party: Party) => void;
+  onDelete: (party: Party) => void;
   onAdd?: () => void;
 }
 
@@ -37,6 +38,7 @@ export function PartyTable({
   parties,
   onRowClick,
   onEdit,
+  onDelete,
   onAdd,
 }: PartyTableProps) {
   if (parties.length === 0) {
@@ -107,18 +109,32 @@ export function PartyTable({
                   />
                 </TableCell>
                 <TableCell>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-slate-500"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onEdit(party);
-                    }}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
+                  <div className="flex items-center gap-0.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-slate-500"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEdit(party);
+                      }}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-red-500 hover:bg-red-50 hover:text-red-600"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete(party);
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

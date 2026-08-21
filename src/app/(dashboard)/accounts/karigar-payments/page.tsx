@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -18,7 +18,7 @@ import { KarigarPaymentsTable } from "@/components/modules/accounts/KarigarPayme
 import { RecordKarigarPaymentDrawer } from "@/components/modules/accounts/RecordKarigarPaymentDrawer";
 import { ViewReceiptDrawer } from "@/components/modules/accounts/ViewReceiptDrawer";
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 10;
 
 const defaultFilters: KarigarPaymentFilters = {
   karigarId: "ALL",
@@ -83,7 +83,7 @@ export default function KarigarPaymentsPage() {
     <div>
       <PageHeader
         title="Karigar Payments"
-        subtitle="Payments auto-calculated from production entries. Rates are locked — no manual override possible."
+        subtitle="Payments auto-calculated from production entries. Rates are locked - no manual override possible."
       />
 
       <KarigarPaymentNotice />

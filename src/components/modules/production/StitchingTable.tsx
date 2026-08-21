@@ -1,6 +1,5 @@
 "use client";
 
-import { Eye } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import type {
@@ -8,7 +7,6 @@ import type {
   StitchingEntryStatus,
 } from "@/mock/production";
 import { EmptyState } from "@/components/common/EmptyState";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -49,7 +47,7 @@ export function StitchingTable({ entries, onAdd }: StitchingTableProps) {
       <EmptyState
         title="No stitching entries found"
         description="Record stitching work after coloring is complete."
-        actionLabel="+ Record Stitching Entry"
+        actionLabel="Record Stitching Entry"
         onAction={onAdd}
       />
     );
@@ -94,9 +92,6 @@ export function StitchingTable({ entries, onAdd }: StitchingTableProps) {
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Status
               </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Actions
-              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -108,7 +103,15 @@ export function StitchingTable({ entries, onAdd }: StitchingTableProps) {
                 .slice(0, 2)
                 .toUpperCase();
               return (
-                <TableRow key={entry.id}>
+                <TableRow
+                  key={entry.id}
+                  className="cursor-pointer"
+                  onClick={() =>
+                    router.push(
+                      ROUTES.PRODUCTION.BUNDLE_DETAIL(entry.bundleNumber)
+                    )
+                  }
+                >
                   <TableCell className="font-semibold text-slate-900">
                     {entry.entryNumber}
                   </TableCell>
@@ -159,21 +162,6 @@ export function StitchingTable({ entries, onAdd }: StitchingTableProps) {
                     >
                       {entry.status.replace("_", " ")}
                     </span>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      type="button"
-                      variant="link"
-                      className="h-auto p-0 text-teal-700"
-                      onClick={() =>
-                        router.push(
-                          ROUTES.PRODUCTION.BUNDLE_DETAIL(entry.bundleNumber)
-                        )
-                      }
-                    >
-                      <Eye className="mr-1 size-3.5" />
-                      View
-                    </Button>
                   </TableCell>
                 </TableRow>
               );

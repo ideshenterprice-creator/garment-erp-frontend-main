@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { mockOperations, type MockOperation } from "@/mock/masters";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
+import { Pagination } from "@/components/common/Pagination";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { OperationsTable } from "@/components/modules/masters/OperationsTable";
 import { OperationsDrawer } from "@/components/modules/masters/OperationsDrawer";
-import { Pagination } from "@/components/common/Pagination";
 
 const PAGE_SIZE = 10;
 
@@ -17,6 +19,7 @@ export default function OperationsMasterPage() {
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<MockOperation | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MockOperation | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 400);
@@ -33,7 +36,7 @@ export default function OperationsMasterPage() {
         subtitle="Every production operation has a fixed rate per piece."
         actionButton={
           <PageHeaderAction
-            label="+ Add Operation"
+            label="Add Operation"
             icon={<Plus className="size-4" />}
             onClick={() => {
               setEditing(null);
@@ -67,6 +70,7 @@ export default function OperationsMasterPage() {
               setEditing(operation);
               setDrawerOpen(true);
             }}
+            onDelete={setDeleteTarget}
             onAdd={() => {
               setEditing(null);
               setDrawerOpen(true);
@@ -100,6 +104,22 @@ export default function OperationsMasterPage() {
             }
             return [operation, ...prev];
           });
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title={`Delete ${deleteTarget?.name ?? "operation"}?`}
+        description="This operation and its locked rate will be removed from the rate matrix."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          setOperations((prev) =>
+            prev.filter((item) => item.id !== deleteTarget.id)
+          );
+          toast.success(`${deleteTarget.name} deleted`);
+          setPage(1);
         }}
       />
     </div>

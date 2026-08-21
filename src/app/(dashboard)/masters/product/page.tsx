@@ -1,15 +1,26 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Package, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  AlertTriangle,
+  Ban,
+  CheckCircle2,
+  Package,
+  Plus,
+  Recycle,
+} from "lucide-react";
+import { toast } from "sonner";
 import { mockProducts, type MockProduct } from "@/mock/masters";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { FilterBar } from "@/components/common/FilterBar";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
+import { Pagination } from "@/components/common/Pagination";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { ProductTable } from "@/components/modules/masters/ProductTable";
 import { ProductDrawer } from "@/components/modules/masters/ProductDrawer";
-import { Pagination } from "@/components/common/Pagination";
+import { ROUTES } from "@/constants/routes";
 
 type ProductFilter =
   | "ALL"
@@ -18,15 +29,17 @@ type ProductFilter =
   | "ACCESSORY"
   | "WASTAGE";
 
-const PAGE_SIZE = 9;
+const PAGE_SIZE = 10;
 
 export default function ProductMasterPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<MockProduct[]>(mockProducts);
   const [filter, setFilter] = useState<ProductFilter>("ALL");
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<MockProduct | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MockProduct | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 400);
@@ -41,8 +54,16 @@ export default function ProductMasterPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const lowStock = 12;
-  const activeSamples = products.filter((p) => p.category === "FINISHED_GOOD").length;
+  const stats = useMemo(
+    () => ({
+      total: products.length,
+      active: products.filter((p) => p.displayStatus === "ACTIVE").length,
+      discontinued: products.filter((p) => p.displayStatus === "DISCONTINUED")
+        .length,
+      wastage: products.filter((p) => p.category === "WASTAGE").length,
+    }),
+    [products]
+  );
 
   return (
     <div>
@@ -51,7 +72,7 @@ export default function ProductMasterPage() {
         subtitle="Fabric, finished garments, accessories and wastage — everything the factory uses or produces."
         actionButton={
           <PageHeaderAction
-            label="+ New Product"
+            label="New Product"
             icon={<Plus className="size-4" />}
             onClick={() => {
               setEditing(null);
@@ -64,22 +85,28 @@ export default function ProductMasterPage() {
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total SKUs"
-          value={124}
+          value={stats.total}
           accent="teal"
           icon={<Package className="size-5" />}
         />
         <StatCard
-          label="Low Stock"
-          value={`${lowStock} Items`}
-          accent="orange"
-          valueClassName="text-orange-600"
+          label="Active Products"
+          value={stats.active}
+          accent="blue"
+          icon={<CheckCircle2 className="size-5" />}
         />
         <StatCard
-          label="Active Samples"
-          value={String(activeSamples).padStart(2, "0")}
-          accent="pink"
+          label="Discontinued"
+          value={stats.discontinued}
+          accent="orange"
+          icon={<Ban className="size-5" />}
         />
-        <StatCard label="Wastage Rate" value="2.4%" accent="gray" />
+        <StatCard
+          label="Wastage Items"
+          value={stats.wastage}
+          accent="gray"
+          icon={<Recycle className="size-5" />}
+        />
       </div>
 
       <FilterBar
@@ -103,10 +130,14 @@ export default function ProductMasterPage() {
         <>
           <ProductTable
             products={pageItems}
+            onRowClick={(product) =>
+              router.push(ROUTES.MASTERS.PRODUCT_DETAIL(product.id))
+            }
             onEdit={(product) => {
               setEditing(product);
               setDrawerOpen(true);
             }}
+            onDelete={setDeleteTarget}
             onAdd={() => {
               setEditing(null);
               setDrawerOpen(true);
@@ -141,10 +172,28 @@ export default function ProductMasterPage() {
           setProducts((prev) => {
             const exists = prev.some((item) => item.id === product.id);
             if (exists) {
-              return prev.map((item) => (item.id === product.id ? product : item));
+              return prev.map((item) =>
+                item.id === product.id ? product : item
+              );
             }
             return [product, ...prev];
           });
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title={`Delete ${deleteTarget?.name ?? "product"}?`}
+        description="This product will be removed from the catalog."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          setProducts((prev) =>
+            prev.filter((item) => item.id !== deleteTarget.id)
+          );
+          toast.success(`${deleteTarget.name} deleted`);
+          setPage(1);
         }}
       />
     </div>

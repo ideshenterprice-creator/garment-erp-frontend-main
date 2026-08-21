@@ -1,21 +1,18 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download } from "lucide-react";
-import { toast } from "sonner";
-import {
-  buildRegisterRows,
-  mockSalesBills,
-} from "@/mock/sales";
+import { buildRegisterRows, mockSalesBills } from "@/mock/sales";
 import { PageHeader } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
+import { Pagination } from "@/components/common/Pagination";
 import {
   SalesRegisterFilterBar,
   type SalesRegisterFilters,
 } from "@/components/modules/sales/SalesRegisterFilterBar";
 import { SalesRegisterSummary } from "@/components/modules/sales/SalesRegisterSummary";
 import { SalesRegisterTable } from "@/components/modules/sales/SalesRegisterTable";
-import { Button } from "@/components/ui/button";
+
+const PAGE_SIZE = 10;
 
 const defaultFilters: SalesRegisterFilters = {
   fromDate: "",
@@ -28,6 +25,7 @@ export default function SalesRegisterPage() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<SalesRegisterFilters>(defaultFilters);
   const [applied, setApplied] = useState<SalesRegisterFilters>(defaultFilters);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 400);
@@ -58,6 +56,9 @@ export default function SalesRegisterPage() {
     [rows]
   );
 
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pageItems = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div>
       <PageHeader
@@ -68,7 +69,10 @@ export default function SalesRegisterPage() {
       <SalesRegisterFilterBar
         filters={filters}
         onChange={setFilters}
-        onApply={() => setApplied(filters)}
+        onApply={() => {
+          setApplied(filters);
+          setPage(1);
+        }}
       />
 
       <SalesRegisterSummary
@@ -81,17 +85,15 @@ export default function SalesRegisterPage() {
         <TableSkeleton rows={6} />
       ) : (
         <>
-          <SalesRegisterTable rows={rows} />
-          <div className="mt-4 flex justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => toast.message("Export feature coming soon")}
-            >
-              <Download className="size-4" />
-              Export to Excel
-            </Button>
-          </div>
+          <SalesRegisterTable rows={pageItems} totalsFrom={rows} />
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={rows.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            label="invoices"
+          />
         </>
       )}
     </div>

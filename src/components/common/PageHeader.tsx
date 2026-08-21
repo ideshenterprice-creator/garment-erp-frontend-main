@@ -30,14 +30,16 @@ interface PageHeaderActionProps {
 }
 
 export function PageHeaderAction({ label, onClick, icon }: PageHeaderActionProps) {
+  const displayLabel = label.replace(/^\+\s*/, "");
+
   return (
     <Button
       type="button"
       onClick={onClick}
-      className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
+      className="gap-2 bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
     >
       {icon}
-      {label}
+      {displayLabel}
     </Button>
   );
 }

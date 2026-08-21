@@ -1,11 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { mockSalesBills, type MockSalesBill } from "@/mock/sales";
-import { PageHeader } from "@/components/common/PageHeader";
+import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
 import {
@@ -19,7 +19,7 @@ import { SubmitBillDialog } from "@/components/modules/sales/SubmitBillDialog";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 10;
 
 export default function SalesBillsPage() {
   const router = useRouter();
@@ -45,12 +45,26 @@ export default function SalesBillsPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const pendingPayment = bills
-    .filter((bill) => bill.status === "SUBMITTED" || bill.status === "PAID")
-    .reduce(
+  const kpis = useMemo(() => {
+    const totalBilled = bills.reduce((sum, bill) => sum + bill.netTotal, 0);
+    const pendingPayment = bills.reduce(
       (sum, bill) => sum + Math.max(0, bill.netTotal - bill.amountReceived),
       0
     );
+    const overdueCount = bills.filter(
+      (bill) =>
+        (bill.status === "SUBMITTED" || bill.status === "PAID") &&
+        bill.amountReceived < bill.netTotal
+    ).length;
+    const draftCount = bills.filter((bill) => bill.status === "DRAFT").length;
+    return {
+      totalBilled,
+      pendingPayment,
+      billsRaised: bills.length,
+      overdueCount,
+      draftCount,
+    };
+  }, [bills]);
 
   return (
     <div>
@@ -58,7 +72,7 @@ export default function SalesBillsPage() {
         title="Sales Bills"
         subtitle="Export invoices generated against buyer POs. Billing is blocked if finished stock is insufficient."
         actionButton={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="outline"
@@ -67,22 +81,21 @@ export default function SalesBillsPage() {
               <FileText className="size-4" />
               Credit/Debit Notes
             </Button>
-            <Button
-              type="button"
-              className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
+            <PageHeaderAction
+              label="New Sales Bill"
+              icon={<Plus className="size-4" />}
               onClick={() => router.push(ROUTES.SALES.NEW_BILL)}
-            >
-              <Plus className="size-4" />
-              + New Sales Bill
-            </Button>
+            />
           </div>
         }
       />
 
       <SalesStatCards
-        totalBilled={1842000}
-        pendingPayment={pendingPayment || 680000}
-        billsRaised={bills.length || 14}
+        totalBilled={kpis.totalBilled}
+        pendingPayment={kpis.pendingPayment}
+        billsRaised={kpis.billsRaised}
+        overdueCount={kpis.overdueCount}
+        draftCount={kpis.draftCount}
       />
 
       <SalesBillFilterBar
@@ -139,7 +152,8 @@ export default function SalesBillsPage() {
           setBills((prev) =>
             prev.map((bill) => {
               if (bill.id !== paymentTarget.id) return bill;
-              const amountReceived = bill.amountReceived + values.amountReceived;
+              const amountReceived =
+                bill.amountReceived + values.amountReceived;
               return {
                 ...bill,
                 amountReceived,
@@ -161,6 +175,7 @@ export default function SalesBillsPage() {
               };
             })
           );
+          toast.success("Payment recorded successfully.");
         }}
       />
     </div>

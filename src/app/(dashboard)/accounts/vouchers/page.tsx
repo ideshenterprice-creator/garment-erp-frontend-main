@@ -1,8 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { Info, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import { mockVouchers, type MockVoucher } from "@/mock/accounts";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
@@ -13,8 +14,15 @@ import {
 } from "@/components/modules/accounts/VoucherFilterBar";
 import { VouchersTable } from "@/components/modules/accounts/VouchersTable";
 import { NewVoucherDrawer } from "@/components/modules/accounts/NewVoucherDrawer";
+import { formatCurrency } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 10;
 
 export default function VouchersPage() {
   const [loading, setLoading] = useState(true);
@@ -22,6 +30,7 @@ export default function VouchersPage() {
   const [filter, setFilter] = useState<VoucherFilter>("ALL");
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selected, setSelected] = useState<MockVoucher | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 400);
@@ -43,7 +52,7 @@ export default function VouchersPage() {
         subtitle="Record cash and bank transactions not linked to any purchase or sales bill."
         actionButton={
           <PageHeaderAction
-            label="+ New Voucher"
+            label="New Voucher"
             icon={<Plus className="size-4" />}
             onClick={() => setDrawerOpen(true)}
           />
@@ -65,7 +74,6 @@ export default function VouchersPage() {
           setFilter(value);
           setPage(1);
         }}
-        onExport={() => toast.message("Export coming soon.")}
       />
 
       {loading ? (
@@ -75,7 +83,7 @@ export default function VouchersPage() {
           <VouchersTable
             vouchers={pageItems}
             onAdd={() => setDrawerOpen(true)}
-            onView={(v) => toast.message(`Viewing ${v.voucherNumber}`)}
+            onRowClick={setSelected}
           />
           <Pagination
             page={page}
@@ -95,8 +103,60 @@ export default function VouchersPage() {
         onSave={(voucher) => {
           setVouchers((prev) => [voucher, ...prev]);
           setPage(1);
+          toast.success("Voucher saved successfully.");
         }}
       />
+
+      <Dialog
+        open={Boolean(selected)}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selected?.voucherNumber}</DialogTitle>
+          </DialogHeader>
+          {selected ? (
+            <div className="grid gap-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Date</span>
+                <span className="font-medium">
+                  {format(new Date(selected.date), "dd MMM yyyy")}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Type</span>
+                <span className="font-medium capitalize">
+                  {selected.type.toLowerCase()}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Party / Description</span>
+                <span className="max-w-[60%] text-right font-medium">
+                  {selected.partyDescription}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Amount</span>
+                <span className="font-semibold">
+                  {formatCurrency(selected.amount)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Mode</span>
+                <span className="font-medium">{selected.paymentMode}</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Reference</span>
+                <span className="font-medium">
+                  {selected.referenceNo || "—"}
+                </span>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

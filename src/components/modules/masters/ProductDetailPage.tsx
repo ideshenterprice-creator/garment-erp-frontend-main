@@ -1,0 +1,166 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Info, Package, Pencil } from "lucide-react";
+import type { MockProduct } from "@/mock/masters";
+import { StatusBadge } from "@/components/common/StatusBadge";
+import { ProductDrawer } from "@/components/modules/masters/ProductDrawer";
+import { Button } from "@/components/ui/button";
+import { ROUTES } from "@/constants/routes";
+
+interface ProductDetailPageProps {
+  product: MockProduct;
+  onProductUpdate: (product: MockProduct) => void;
+}
+
+function categoryLabel(category: MockProduct["category"]) {
+  switch (category) {
+    case "RAW_MATERIAL":
+      return "Raw Material";
+    case "FINISHED_GOOD":
+      return "Finished Goods";
+    case "ACCESSORY":
+      return "Accessory";
+    case "WASTAGE":
+      return "Wastage";
+  }
+}
+
+function unitLabel(unit: MockProduct["unit"]) {
+  switch (unit) {
+    case "KG":
+      return "Kgs";
+    case "PCS":
+      return "Pcs";
+    case "METERS":
+      return "Meters";
+    case "ROLLS":
+      return "Rolls";
+  }
+}
+
+export function ProductDetailPage({
+  product,
+  onProductUpdate,
+}: ProductDetailPageProps) {
+  const router = useRouter();
+  const [editOpen, setEditOpen] = useState(false);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={() => router.push(ROUTES.MASTERS.PRODUCT)}
+            className="mt-1 rounded-md p-1 text-slate-500 hover:bg-slate-100"
+            aria-label="Back"
+          >
+            <ArrowLeft className="size-5" />
+          </button>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold text-slate-900 md:text-[28px]">
+                {product.name}
+              </h1>
+              <StatusBadge
+                label={
+                  product.displayStatus === "ACTIVE"
+                    ? "Active"
+                    : product.displayStatus === "DISCONTINUED"
+                      ? "Discontinued"
+                      : "Tracking"
+                }
+                variant={
+                  product.displayStatus === "ACTIVE"
+                    ? "active"
+                    : product.displayStatus === "DISCONTINUED"
+                      ? "discontinued"
+                      : "tracking"
+                }
+                withDot
+              />
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {categoryLabel(product.category)} · {product.productCode}
+            </p>
+          </div>
+        </div>
+        <Button type="button" variant="outline" onClick={() => setEditOpen(true)}>
+          <Pencil className="size-4" />
+          Edit Product
+        </Button>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <Info className="size-4 text-slate-500" />
+            <h2 className="font-semibold text-slate-900">Product Info</h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                Category
+              </p>
+              <p className="mt-1 text-sm font-medium">
+                {categoryLabel(product.category)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                Unit
+              </p>
+              <p className="mt-1 text-sm font-medium">
+                {unitLabel(product.unit)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                GST Rate
+              </p>
+              <p className="mt-1 text-sm font-medium">{product.gstRate}%</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                Product Code
+              </p>
+              <p className="mt-1 text-sm font-medium">{product.productCode}</p>
+            </div>
+            {product.garmentType ? (
+              <div className="sm:col-span-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  Garment Type
+                </p>
+                <p className="mt-1 text-sm font-medium">{product.garmentType}</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <Package className="mb-3 size-10 text-slate-400" />
+          <p className="text-sm text-muted-foreground">
+            Stock levels for this product are tracked in Inventory → Stock View.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-4"
+            onClick={() => router.push(ROUTES.INVENTORY.STOCK)}
+          >
+            Open Stock View
+          </Button>
+        </div>
+      </div>
+
+      <ProductDrawer
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        product={product}
+        onSave={onProductUpdate}
+      />
+    </div>
+  );
+}

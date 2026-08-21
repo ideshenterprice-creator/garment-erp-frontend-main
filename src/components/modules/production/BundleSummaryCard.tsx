@@ -1,4 +1,5 @@
 import type { MockBundleRecord } from "@/mock/production";
+import { SizeBreakdownChips } from "@/components/modules/production/SizeBreakdownChips";
 import { cn } from "@/lib/utils";
 
 interface BundleSummaryCardProps {
@@ -60,6 +61,15 @@ export function BundleSummaryCard({ bundle }: BundleSummaryCardProps) {
             </p>
           </div>
         ))}
+      </div>
+
+      <div className="mt-5 border-t border-slate-100 pt-4">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          Size Breakdown
+        </p>
+        <div className="mt-2">
+          <SizeBreakdownChips sizes={bundle.sizes} className="gap-1.5" />
+        </div>
       </div>
     </div>
   );

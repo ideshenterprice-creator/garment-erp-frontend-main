@@ -2,21 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Filter, Plus, ShoppingBag, Truck, Wrench } from "lucide-react";
+import { Plus, ShoppingBag, Truck, Wrench } from "lucide-react";
+import { toast } from "sonner";
 import { mockParties } from "@/mock/masters";
 import type { Party } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { FilterBar } from "@/components/common/FilterBar";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
+import { Pagination } from "@/components/common/Pagination";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { PartyTable } from "@/components/modules/masters/PartyTable";
 import { PartyDrawer } from "@/components/modules/masters/PartyDrawer";
-import { Pagination } from "@/components/common/Pagination";
-import { Button } from "@/components/ui/button";
 
 type PartyFilter = "ALL" | "BUYER" | "SUPPLIER" | "KARIGAR";
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 10;
 
 export default function PartyMasterPage() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function PartyMasterPage() {
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingParty, setEditingParty] = useState<Party | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Party | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 400);
@@ -66,7 +68,7 @@ export default function PartyMasterPage() {
         subtitle="Manage all buyers, suppliers and Karigars. Every transaction is linked to a party."
         actionButton={
           <PageHeaderAction
-            label="+ Add Party"
+            label="Add Party"
             icon={<Plus className="size-4" />}
             onClick={() => {
               setEditingParty(null);
@@ -79,19 +81,19 @@ export default function PartyMasterPage() {
       <div className="mb-6 grid gap-4 md:grid-cols-3">
         <StatCard
           label="Total Buyers"
-          value={String(counts.buyers).padStart(2, "0")}
+          value={counts.buyers}
           accent="blue"
           icon={<ShoppingBag className="size-5" />}
         />
         <StatCard
           label="Total Suppliers"
-          value={String(counts.suppliers).padStart(2, "0")}
+          value={counts.suppliers}
           accent="yellow"
           icon={<Truck className="size-5" />}
         />
         <StatCard
           label="Total Karigars"
-          value={String(counts.karigars).padStart(2, "0")}
+          value={counts.karigars}
           accent="purple"
           icon={<Wrench className="size-5" />}
         />
@@ -109,18 +111,6 @@ export default function PartyMasterPage() {
           setFilter(value as PartyFilter);
           setPage(1);
         }}
-        extraActions={
-          <>
-            <Button type="button" variant="outline" size="sm">
-              <Filter className="size-4" />
-              More Filters
-            </Button>
-            <Button type="button" variant="outline" size="sm">
-              <Download className="size-4" />
-              Export
-            </Button>
-          </>
-        }
       />
 
       {loading ? (
@@ -134,6 +124,7 @@ export default function PartyMasterPage() {
               setEditingParty(party);
               setDrawerOpen(true);
             }}
+            onDelete={setDeleteTarget}
             onAdd={() => {
               setEditingParty(null);
               setDrawerOpen(true);
@@ -159,6 +150,20 @@ export default function PartyMasterPage() {
         }}
         party={editingParty}
         onSave={handleSave}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title={`Delete ${deleteTarget?.name ?? "party"}?`}
+        description="This will remove the party from the master list. Existing linked transactions will not be deleted."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          setParties((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+          toast.success(`${deleteTarget.name} deleted`);
+          setPage(1);
+        }}
       />
     </div>
   );

@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 
 type POFilter = "ALL" | PurchaseOrderStatus;
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 10;
 
 const filterTabs: { label: string; value: POFilter }[] = [
   { label: "All", value: "ALL" },
@@ -100,7 +100,7 @@ export default function PurchaseOrdersPage() {
         <>
           <POTable
             orders={pageItems}
-            onView={(order) =>
+            onRowClick={(order) =>
               router.push(ROUTES.PURCHASE_ORDERS.DETAIL(order.id))
             }
             onEdit={(order) =>
@@ -115,16 +115,10 @@ export default function PurchaseOrdersPage() {
           />
           <Pagination
             page={page}
-            totalPages={filter === "ALL" ? 16 : totalPages}
-            totalItems={filter === "ALL" ? 124 : filtered.length}
+            totalPages={totalPages}
+            totalItems={filtered.length}
             pageSize={PAGE_SIZE}
-            onPageChange={(next) => {
-              const maxPage =
-                filter === "ALL"
-                  ? Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-                  : totalPages;
-              setPage(Math.min(next, maxPage));
-            }}
+            onPageChange={setPage}
             label="Purchase Orders"
           />
         </>

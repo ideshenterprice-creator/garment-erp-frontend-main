@@ -15,9 +15,11 @@ import { cn } from "@/lib/utils";
 
 interface RegisterTableProps {
   bills: MockPurchaseBill[];
+  /** When paginating, pass the full filtered set so footer totals stay correct. */
+  totalsFrom?: MockPurchaseBill[];
 }
 
-export function RegisterTable({ bills }: RegisterTableProps) {
+export function RegisterTable({ bills, totalsFrom }: RegisterTableProps) {
   if (bills.length === 0) {
     return (
       <EmptyState
@@ -27,7 +29,8 @@ export function RegisterTable({ bills }: RegisterTableProps) {
     );
   }
 
-  const totals = bills.reduce(
+  const totalsSource = totalsFrom ?? bills;
+  const totals = totalsSource.reduce(
     (acc, bill) => ({
       netWeight: acc.netWeight + bill.netWeight,
       totalAmount: acc.totalAmount + bill.totalAmount,

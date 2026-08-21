@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -15,7 +15,7 @@ import { CreditDebitNotesTable } from "@/components/modules/sales/CreditDebitNot
 import { NewNoteDrawer } from "@/components/modules/sales/NewNoteDrawer";
 import { cn } from "@/lib/utils";
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 10;
 
 type NoteFilter = "ALL" | NoteType;
 
@@ -53,7 +53,7 @@ function SalesNotesContent() {
         subtitle="Adjustments against existing sales bills."
         actionButton={
           <PageHeaderAction
-            label="+ New Note"
+            label="New Note"
             icon={<Plus className="size-4" />}
             onClick={() => setDrawerOpen(true)}
           />

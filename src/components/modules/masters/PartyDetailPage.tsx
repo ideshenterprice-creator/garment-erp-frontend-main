@@ -4,22 +4,22 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  Award,
   Ban,
   Building2,
   Clock3,
+  Eye,
   Info,
   Pencil,
-  ShoppingBag,
-  Star,
-  Wallet,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import type { Party } from "@/types";
-import { mockPartyTransactions } from "@/mock/masters";
+import {
+  mockPartyTransactions,
+  type PartyTransaction,
+} from "@/mock/masters";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { StatCard } from "@/components/common/StatCard";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { PartyDrawer } from "@/components/modules/masters/PartyDrawer";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ROUTES } from "@/constants/routes";
 import { formatCurrency } from "@/lib/utils";
 
 interface PartyDetailPageProps {
@@ -38,20 +39,22 @@ interface PartyDetailPageProps {
   onPartyUpdate: (party: Party) => void;
 }
 
+const PREVIEW_LIMIT = 5;
+
 export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-
-  const transactions = useMemo(
-    () => mockPartyTransactions[party.id] ?? [],
-    [party.id]
+  const [showAll, setShowAll] = useState(false);
+  const [transactions, setTransactions] = useState<PartyTransaction[]>(
+    () => mockPartyTransactions[party.id] ?? []
   );
+  const [deleteTxn, setDeleteTxn] = useState<PartyTransaction | null>(null);
 
-  const totalBusiness = transactions.reduce((sum, item) => sum + item.amount, 0);
-  const outstanding = transactions
-    .filter((item) => item.status === "PENDING")
-    .reduce((sum, item) => sum + item.amount, 0);
+  const visibleTransactions = useMemo(
+    () => (showAll ? transactions : transactions.slice(0, PREVIEW_LIMIT)),
+    [showAll, transactions]
+  );
 
   function typeLabel(type: Party["type"]) {
     if (type === "BUYER") return "BUYER";
@@ -60,7 +63,7 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
   }
 
   function typeVariant(type: Party["type"]) {
-    if (type === "BUYER") return "supplier" as const;
+    if (type === "BUYER") return "buyer" as const;
     if (type === "SUPPLIER") return "supplier" as const;
     return "karigar" as const;
   }
@@ -68,13 +71,37 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
   const hasBank =
     Boolean(party.bankAccount) || Boolean(party.ifsc) || Boolean(party.bankName);
 
+  function goToFullLedger() {
+    if (party.type === "BUYER") {
+      router.push(`${ROUTES.ACCOUNTS.STATEMENT}?partyId=${party.id}`);
+      return;
+    }
+    if (party.type === "SUPPLIER") {
+      router.push(ROUTES.PURCHASE.REGISTER);
+      return;
+    }
+    router.push(ROUTES.ACCOUNTS.KARIGAR_PAYMENTS);
+  }
+
+  function viewTransaction(txn: PartyTransaction) {
+    if (txn.transactionId.startsWith("INV-")) {
+      router.push(ROUTES.SALES.BILLS);
+      return;
+    }
+    if (txn.transactionId.startsWith("PO-")) {
+      router.push(ROUTES.PURCHASE_ORDERS.ROOT);
+      return;
+    }
+    goToFullLedger();
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-3">
           <button
             type="button"
-            onClick={() => router.push("/masters/party")}
+            onClick={() => router.push(ROUTES.MASTERS.PARTY)}
             className="mt-1 rounded-md p-1 text-slate-500 hover:bg-slate-100"
             aria-label="Back"
           >
@@ -137,7 +164,9 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 Contact Number
               </p>
-              <p className="mt-1 text-sm font-medium text-slate-900">{party.contact}</p>
+              <p className="mt-1 text-sm font-medium text-slate-900">
+                {party.contact}
+              </p>
             </div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
@@ -175,7 +204,8 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
                 <span className="text-muted-foreground">IFSC:</span> {party.ifsc}
               </p>
               <p>
-                <span className="text-muted-foreground">Bank:</span> {party.bankName}
+                <span className="text-muted-foreground">Bank:</span>{" "}
+                {party.bankName}
               </p>
             </div>
           ) : (
@@ -207,9 +237,25 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
             <Clock3 className="size-4 text-slate-500" />
             <h2 className="font-semibold text-slate-900">Transaction History</h2>
           </div>
-          <button type="button" className="text-sm font-medium text-[#1b3a3a]">
-            View All Transactions →
-          </button>
+          <div className="flex items-center gap-3">
+            {transactions.length > PREVIEW_LIMIT ? (
+              <button
+                type="button"
+                className="text-sm font-medium text-[#1b3a3a] hover:underline"
+                onClick={() => setShowAll((prev) => !prev)}
+              >
+                {showAll ? "Show less" : "View All Transactions →"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="text-sm font-medium text-[#1b3a3a] hover:underline"
+                onClick={goToFullLedger}
+              >
+                View All Transactions →
+              </button>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <Table>
@@ -224,16 +270,21 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {transactions.length === 0 ? (
+              {visibleTransactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell
+                    colSpan={6}
+                    className="text-center text-muted-foreground"
+                  >
                     No transactions yet
                   </TableCell>
                 </TableRow>
               ) : (
-                transactions.map((txn) => (
+                visibleTransactions.map((txn) => (
                   <TableRow key={txn.id}>
-                    <TableCell className="font-medium">{txn.transactionId}</TableCell>
+                    <TableCell className="font-medium">
+                      {txn.transactionId}
+                    </TableCell>
                     <TableCell>{txn.type}</TableCell>
                     <TableCell>
                       {format(new Date(txn.date), "dd MMM yyyy")}
@@ -245,49 +296,34 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
                         variant={txn.status === "PAID" ? "paid" : "pending"}
                       />
                     </TableCell>
-                    <TableCell />
+                    <TableCell>
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          onClick={() => viewTransaction(txn)}
+                        >
+                          <Eye className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-red-500 hover:bg-red-50"
+                          onClick={() => setDeleteTxn(txn)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
         </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard
-          label="Total Outstanding"
-          value={formatCurrency(outstanding)}
-          accent="red"
-          icon={<Wallet className="size-5" />}
-          valueClassName="text-red-600"
-        />
-        <StatCard
-          label="Total Business Value"
-          value={formatCurrency(totalBusiness || 810000)}
-          accent="gray"
-          icon={<ShoppingBag className="size-5" />}
-        />
-        <StatCard
-          label="Reliability Score"
-          value="4.0/5"
-          accent="orange"
-          icon={<Award className="size-5" />}
-          footer={
-            <div className="mt-1 flex items-center gap-0.5">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <Star
-                  key={star}
-                  className={`size-3.5 ${
-                    star <= 4
-                      ? "fill-orange-400 text-orange-400"
-                      : "text-slate-300"
-                  }`}
-                />
-              ))}
-            </div>
-          }
-        />
       </div>
 
       <PartyDrawer
@@ -312,6 +348,21 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
           toast.success(
             party.isActive ? "Party deactivated" : "Party activated"
           );
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTxn)}
+        onClose={() => setDeleteTxn(null)}
+        title={`Delete ${deleteTxn?.transactionId ?? "transaction"}?`}
+        description="This removes the transaction from this party history preview."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (!deleteTxn) return;
+          setTransactions((prev) =>
+            prev.filter((item) => item.id !== deleteTxn.id)
+          );
+          toast.success("Transaction removed");
         }}
       />
     </div>

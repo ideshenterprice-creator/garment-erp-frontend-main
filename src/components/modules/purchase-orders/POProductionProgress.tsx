@@ -1,4 +1,8 @@
+"use client";
+
+import Link from "next/link";
 import type { POProductionStage } from "@/mock/purchaseOrders";
+import { ROUTES } from "@/constants/routes";
 import { cn } from "@/lib/utils";
 import {
   Table,
@@ -40,12 +44,24 @@ export function POProductionProgress({
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="font-semibold text-slate-900">Production Live Tracking</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="font-semibold text-slate-900">
+            Production Live Tracking
+          </h2>
+          <Link
+            href={ROUTES.PRODUCTION.ROOT}
+            className="text-xs font-medium text-[#1b3a3a] hover:underline"
+          >
+            Open Production →
+          </Link>
+        </div>
         <div className="flex items-center gap-3">
           <div className="h-2 w-40 overflow-hidden rounded-full bg-slate-100">
             <div
               className="h-full rounded-full bg-orange-400"
-              style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}
+              style={{
+                width: `${Math.min(100, Math.max(0, progressPercent))}%`,
+              }}
             />
           </div>
           <span className="text-xs font-medium text-slate-500">
@@ -69,7 +85,14 @@ export function POProductionProgress({
               const badge = stageBadge(stage.status);
               return (
                 <TableRow key={stage.stage}>
-                  <TableCell className="font-medium">{stage.stage}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link
+                      href={ROUTES.PRODUCTION.ROOT}
+                      className="text-[#1b3a3a] hover:underline"
+                    >
+                      {stage.stage}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-right">
                     {stage.issued.toLocaleString("en-IN")}
                   </TableCell>

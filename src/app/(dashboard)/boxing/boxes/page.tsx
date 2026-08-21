@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
@@ -17,7 +17,7 @@ import { BoxPackingTable } from "@/components/modules/boxing/BoxPackingTable";
 import { BoxStatCards } from "@/components/modules/boxing/BoxStatCards";
 import { NewBoxDrawer } from "@/components/modules/boxing/NewBoxDrawer";
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 10;
 
 const defaultFilters: BoxFilters = {
   poId: "ALL",

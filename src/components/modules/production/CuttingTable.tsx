@@ -1,12 +1,9 @@
 "use client";
 
-import { Eye } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import type { MockCuttingEntry } from "@/mock/production";
 import { EmptyState } from "@/components/common/EmptyState";
-import { SizeBreakdownChips } from "@/components/modules/production/SizeBreakdownChips";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -30,7 +27,7 @@ export function CuttingTable({ entries, onAdd }: CuttingTableProps) {
       <EmptyState
         title="No cutting entries found"
         description="Record a cutting entry to start production tracking."
-        actionLabel="+ Record Cutting Entry"
+        actionLabel="Record Cutting Entry"
         onAction={onAdd}
       />
     );
@@ -64,22 +61,22 @@ export function CuttingTable({ entries, onAdd }: CuttingTableProps) {
                 Pieces
               </TableHead>
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Size Breakdown
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Wastage (kg)
               </TableHead>
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Karigar
               </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Actions
-              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {entries.map((entry) => (
-              <TableRow key={entry.id}>
+              <TableRow
+                key={entry.id}
+                className="cursor-pointer"
+                onClick={() =>
+                  router.push(ROUTES.PRODUCTION.BUNDLE_DETAIL(entry.bundleNumber))
+                }
+              >
                 <TableCell className="font-semibold text-slate-900">
                   {entry.entryNumber}
                 </TableCell>
@@ -93,29 +90,10 @@ export function CuttingTable({ entries, onAdd }: CuttingTableProps) {
                 <TableCell className="font-semibold">
                   {entry.pieces.toLocaleString("en-IN")}
                 </TableCell>
-                <TableCell>
-                  <SizeBreakdownChips sizes={entry.sizes} />
-                </TableCell>
                 <TableCell className="font-semibold text-red-600">
                   {entry.wastageKg.toFixed(1)}
                 </TableCell>
                 <TableCell>{entry.karigarName}</TableCell>
-                <TableCell>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-teal-700"
-                    onClick={() =>
-                      router.push(
-                        ROUTES.PRODUCTION.BUNDLE_DETAIL(entry.bundleNumber)
-                      )
-                    }
-                  >
-                    <Eye className="size-4" />
-                    View
-                  </Button>
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>

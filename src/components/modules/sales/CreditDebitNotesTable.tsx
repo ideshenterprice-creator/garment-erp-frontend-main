@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
+import { format } from "date-fns";
 import type { MockCreditDebitNote, NoteType } from "@/mock/sales";
 import { EmptyState } from "@/components/common/EmptyState";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -11,8 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { ROUTES } from "@/constants/routes";
 import { cn, formatCurrency } from "@/lib/utils";
-import { format } from "date-fns";
 
 interface CreditDebitNotesTableProps {
   notes: MockCreditDebitNote[];
@@ -28,71 +35,88 @@ export function CreditDebitNotesTable({
       <EmptyState
         title="No notes found"
         description="Create a credit or debit note linked to a sales invoice."
-        actionLabel="+ New Note"
+        actionLabel="New Note"
         onAction={onAdd}
       />
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-slate-50/80">
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Note No
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Type
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Linked Invoice
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Buyer
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Date
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Amount
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Reason
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Actions
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {notes.map((note) => (
-              <TableRow key={note.id}>
-                <TableCell className="font-semibold">{note.noteNumber}</TableCell>
-                <TableCell>
-                  <NoteTypeBadge type={note.type} />
-                </TableCell>
-                <TableCell>{note.invoiceNumber}</TableCell>
-                <TableCell>{note.buyerName}</TableCell>
-                <TableCell>
-                  {format(new Date(note.date), "dd MMM yyyy")}
-                </TableCell>
-                <TableCell className="font-semibold">
-                  {formatCurrency(note.amount)}
-                </TableCell>
-                <TableCell className="max-w-xs truncate">{note.reason}</TableCell>
-                <TableCell>
-                  <Button type="button" variant="link" className="h-auto p-0">
-                    View
-                  </Button>
-                </TableCell>
+    <TooltipProvider delayDuration={200}>
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50/80">
+                <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Note No
+                </TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Type
+                </TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Linked Invoice
+                </TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Buyer
+                </TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Date
+                </TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Amount
+                </TableHead>
+                <TableHead className="min-w-[280px] text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Reason
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {notes.map((note) => (
+                <TableRow key={note.id}>
+                  <TableCell className="font-semibold">
+                    {note.noteNumber}
+                  </TableCell>
+                  <TableCell>
+                    <NoteTypeBadge type={note.type} />
+                  </TableCell>
+                  <TableCell>
+                    <Link
+                      href={ROUTES.SALES.BILL_DETAIL(note.salesBillId)}
+                      className="font-medium text-[#1b3a3a] hover:underline"
+                    >
+                      {note.invoiceNumber}
+                    </Link>
+                  </TableCell>
+                  <TableCell>{note.buyerName}</TableCell>
+                  <TableCell>
+                    {format(new Date(note.date), "dd MMM yyyy")}
+                  </TableCell>
+                  <TableCell className="font-semibold">
+                    {formatCurrency(note.amount)}
+                  </TableCell>
+                  <TableCell className="max-w-md">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <p className="whitespace-normal text-sm leading-relaxed text-slate-700">
+                          {note.reason}
+                        </p>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        className="max-w-sm whitespace-normal text-left"
+                      >
+                        {note.reason}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }
 

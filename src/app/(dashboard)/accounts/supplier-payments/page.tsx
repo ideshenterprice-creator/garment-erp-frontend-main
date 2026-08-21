@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
@@ -18,12 +18,11 @@ import { SupplierPaymentStatCards } from "@/components/modules/accounts/Supplier
 import { SupplierPaymentsTable } from "@/components/modules/accounts/SupplierPaymentsTable";
 import { RecordSupplierPaymentDrawer } from "@/components/modules/accounts/RecordSupplierPaymentDrawer";
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 10;
 
 const defaultFilters: SupplierPaymentFilters = {
   supplierId: "ALL",
   status: "ALL",
-  dateRange: "THIS_MONTH",
 };
 
 export default function SupplierPaymentsPage() {
@@ -31,8 +30,6 @@ export default function SupplierPaymentsPage() {
   const [payments, setPayments] =
     useState<MockSupplierPayment[]>(mockSupplierPayments);
   const [filters, setFilters] =
-    useState<SupplierPaymentFilters>(defaultFilters);
-  const [applied, setApplied] =
     useState<SupplierPaymentFilters>(defaultFilters);
   const [page, setPage] = useState(1);
   const [payTarget, setPayTarget] = useState<MockSupplierPayment | null>(null);
@@ -44,21 +41,24 @@ export default function SupplierPaymentsPage() {
 
   const filtered = useMemo(() => {
     return payments.filter((row) => {
-      if (applied.supplierId !== "ALL" && row.supplierId !== applied.supplierId) {
+      if (filters.supplierId !== "ALL" && row.supplierId !== filters.supplierId) {
         return false;
       }
-      if (applied.status !== "ALL" && row.status !== applied.status) return false;
+      if (filters.status !== "ALL" && row.status !== filters.status) return false;
       return true;
     });
-  }, [payments, applied]);
+  }, [payments, filters]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const totalPending = payments.reduce((sum, row) => sum + row.balanceDue, 0);
-  const totalPaidThisMonth = payments
-    .filter((row) => row.status === "PAID" || row.amountPaid > 0)
-    .reduce((sum, row) => sum + row.amountPaid, 0);
+  const kpis = useMemo(() => {
+    const totalPending = payments.reduce((sum, row) => sum + row.balanceDue, 0);
+    const totalPaidThisMonth = payments
+      .filter((row) => row.amountPaid > 0)
+      .reduce((sum, row) => sum + row.amountPaid, 0);
+    return { totalPending, totalPaidThisMonth };
+  }, [payments]);
 
   return (
     <div>
@@ -67,7 +67,7 @@ export default function SupplierPaymentsPage() {
         subtitle="Pay suppliers against confirmed purchase bills."
         actionButton={
           <PageHeaderAction
-            label="+ New Payment"
+            label="New Payment"
             icon={<Plus className="size-4" />}
             onClick={() => {
               const unpaid = payments.find((p) => p.status !== "PAID");
@@ -78,25 +78,18 @@ export default function SupplierPaymentsPage() {
         }
       />
 
-      <div className="mb-6 grid gap-4 xl:grid-cols-[1fr_1.2fr] xl:items-start">
-        <SupplierPaymentStatCards
-          totalPending={totalPending || 279600}
-          totalPaidThisMonth={totalPaidThisMonth || 333000}
-        />
-        <SupplierPaymentFilterBar
-          filters={filters}
-          onChange={setFilters}
-          onApply={() => {
-            setApplied(filters);
-            setPage(1);
-          }}
-          onReset={() => {
-            setFilters(defaultFilters);
-            setApplied(defaultFilters);
-            setPage(1);
-          }}
-        />
-      </div>
+      <SupplierPaymentStatCards
+        totalPending={kpis.totalPending}
+        totalPaidThisMonth={kpis.totalPaidThisMonth}
+      />
+
+      <SupplierPaymentFilterBar
+        filters={filters}
+        onChange={(next) => {
+          setFilters(next);
+          setPage(1);
+        }}
+      />
 
       {loading ? (
         <TableSkeleton rows={6} />
@@ -105,9 +98,13 @@ export default function SupplierPaymentsPage() {
           <SupplierPaymentsTable
             payments={pageItems}
             onPay={setPayTarget}
-            onView={(row) =>
-              toast.message(`Viewing ${row.billNo} — details coming soon`)
-            }
+            onRowClick={(row) => {
+              if (row.status !== "PAID") {
+                setPayTarget(row);
+                return;
+              }
+              toast.message(`${row.billNo} is fully paid`);
+            }}
           />
           <Pagination
             page={page}
@@ -156,6 +153,7 @@ export default function SupplierPaymentsPage() {
               };
             })
           );
+          toast.success("Payment recorded successfully.");
         }}
       />
     </div>

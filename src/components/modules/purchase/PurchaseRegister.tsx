@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download } from "lucide-react";
-import { toast } from "sonner";
 import { mockPurchaseBills } from "@/mock/purchase";
 import { PageHeader } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
+import { Pagination } from "@/components/common/Pagination";
 import {
   RegisterFilterBar,
   type RegisterFilters,
 } from "@/components/modules/purchase/RegisterFilterBar";
 import { RegisterSummary } from "@/components/modules/purchase/RegisterSummary";
 import { RegisterTable } from "@/components/modules/purchase/RegisterTable";
-import { Button } from "@/components/ui/button";
+
+const PAGE_SIZE = 10;
 
 const defaultFilters: RegisterFilters = {
   fromDate: "2024-01-01",
@@ -25,6 +25,7 @@ export function PurchaseRegister() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<RegisterFilters>(defaultFilters);
   const [applied, setApplied] = useState<RegisterFilters>(defaultFilters);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 400);
@@ -57,6 +58,9 @@ export function PurchaseRegister() {
     return { totalPurchases, totalFabricKg, pendingPayments };
   }, [filtered]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   return (
     <div>
       <PageHeader
@@ -67,7 +71,10 @@ export function PurchaseRegister() {
       <RegisterFilterBar
         filters={filters}
         onChange={setFilters}
-        onApply={() => setApplied(filters)}
+        onApply={() => {
+          setApplied(filters);
+          setPage(1);
+        }}
       />
 
       <RegisterSummary
@@ -76,18 +83,21 @@ export function PurchaseRegister() {
         pendingPayments={summary.pendingPayments}
       />
 
-      {loading ? <TableSkeleton /> : <RegisterTable bills={filtered} />}
-
-      <div className="mt-4 flex justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => toast.message("Export feature coming soon")}
-        >
-          <Download className="size-4" />
-          Export
-        </Button>
-      </div>
+      {loading ? (
+        <TableSkeleton />
+      ) : (
+        <>
+          <RegisterTable bills={pageItems} totalsFrom={filtered} />
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={filtered.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            label="bills"
+          />
+        </>
+      )}
     </div>
   );
 }

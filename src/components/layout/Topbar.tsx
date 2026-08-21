@@ -1,8 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Search, Settings } from "lucide-react";
+import { Bell, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { ROUTES } from "@/constants/routes";
+import { mockNotifications } from "@/mock/notifications";
+import { cn } from "@/lib/utils";
 
 function getSearchPlaceholder(pathname: string): string {
   if (pathname.startsWith("/masters/party")) {
@@ -20,12 +24,19 @@ function getSearchPlaceholder(pathname: string): string {
   if (pathname.startsWith("/masters/karigar")) {
     return "Search karigars or operations...";
   }
+  if (pathname.startsWith("/purchase-orders")) {
+    return "Search purchase orders or buyers...";
+  }
+  if (pathname.startsWith("/notifications")) {
+    return "Search notifications...";
+  }
   return "Search Master Records...";
 }
 
 export function Topbar() {
   const pathname = usePathname();
   const placeholder = getSearchPlaceholder(pathname);
+  const unreadCount = mockNotifications.filter((item) => !item.isRead).length;
 
   return (
     <header className="flex h-14 items-center gap-4 border-b border-slate-200 bg-white px-4 md:px-6">
@@ -40,20 +51,21 @@ export function Topbar() {
         </div>
       </div>
       <div className="ml-auto flex items-center gap-1">
-        <button
-          type="button"
-          className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+        <Link
+          href={ROUTES.NOTIFICATIONS}
+          className={cn(
+            "relative rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800",
+            pathname.startsWith("/notifications") && "bg-slate-100 text-slate-900"
+          )}
           aria-label="Notifications"
         >
           <Bell className="size-5" />
-        </button>
-        <button
-          type="button"
-          className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-          aria-label="Settings"
-        >
-          <Settings className="size-5" />
-        </button>
+          {unreadCount > 0 ? (
+            <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-semibold text-white">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          ) : null}
+        </Link>
       </div>
     </header>
   );

@@ -15,9 +15,13 @@ import { cn, formatCurrency } from "@/lib/utils";
 
 interface SalesRegisterTableProps {
   rows: MockSalesRegisterRow[];
+  totalsFrom?: MockSalesRegisterRow[];
 }
 
-export function SalesRegisterTable({ rows }: SalesRegisterTableProps) {
+export function SalesRegisterTable({
+  rows,
+  totalsFrom,
+}: SalesRegisterTableProps) {
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -27,7 +31,8 @@ export function SalesRegisterTable({ rows }: SalesRegisterTableProps) {
     );
   }
 
-  const totals = rows.reduce(
+  const totalsSource = totalsFrom ?? rows;
+  const totals = totalsSource.reduce(
     (acc, row) => ({
       pieces: acc.pieces + row.totalPieces,
       net: acc.net + row.netAmount,

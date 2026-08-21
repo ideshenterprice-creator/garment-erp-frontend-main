@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { KarigarProfile } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -18,6 +18,7 @@ interface KarigarTableProps {
   karigars: KarigarProfile[];
   onRowClick: (karigar: KarigarProfile) => void;
   onEdit: (karigar: KarigarProfile) => void;
+  onDelete: (karigar: KarigarProfile) => void;
   onAdd?: () => void;
 }
 
@@ -37,6 +38,7 @@ export function KarigarTable({
   karigars,
   onRowClick,
   onEdit,
+  onDelete,
   onAdd,
 }: KarigarTableProps) {
   if (karigars.length === 0) {
@@ -124,18 +126,32 @@ export function KarigarTable({
                   />
                 </TableCell>
                 <TableCell>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onEdit(karigar);
-                    }}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
+                  <div className="flex items-center gap-0.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEdit(karigar);
+                      }}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-red-500 hover:bg-red-50"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete(karigar);
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

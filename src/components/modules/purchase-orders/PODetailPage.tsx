@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format, isBefore, differenceInCalendarDays } from "date-fns";
 import { Ban, Pencil } from "lucide-react";
@@ -11,7 +12,6 @@ import { PODetailCard } from "@/components/modules/purchase-orders/PODetailCard"
 import { POItemsTable } from "@/components/modules/purchase-orders/POItemsTable";
 import { POProductionProgress } from "@/components/modules/purchase-orders/POProductionProgress";
 import { POFabricLots } from "@/components/modules/purchase-orders/POFabricLots";
-import { POQuickActions } from "@/components/modules/purchase-orders/POQuickActions";
 import { CancelPODialog } from "@/components/modules/purchase-orders/CancelPODialog";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
@@ -66,7 +66,7 @@ export function PODetailPage({ poId }: PODetailPageProps) {
     order.status !== "COMPLETED" && order.status !== "CANCELLED";
 
   return (
-    <div className="flex flex-col gap-6 pb-24">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -76,7 +76,13 @@ export function PODetailPage({ poId }: PODetailPageProps) {
             <POStatusBadge status={order.status} />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            {order.buyer.name}, {order.buyer.country} • Ordered{" "}
+            <Link
+              href={`/masters/party/${order.buyerId}`}
+              className="font-medium text-[#1b3a3a] hover:underline"
+            >
+              {order.buyer.name}
+            </Link>
+            , {order.buyer.country} • Ordered{" "}
             {format(new Date(order.orderDate), "dd MMM yyyy")} •{" "}
             <span
               className={cn(
@@ -164,8 +170,6 @@ export function PODetailPage({ poId }: PODetailPageProps) {
         lots={order.fabricLots ?? []}
         fabricNeededKg={order.fabricNeededKg ?? 0}
       />
-
-      <POQuickActions poId={order.id} />
 
       <CancelPODialog
         open={cancelOpen}

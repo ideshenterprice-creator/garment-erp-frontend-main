@@ -147,6 +147,7 @@ export interface MockBundleRecord {
   totalPieces: number;
   fabricIssuedKg: number;
   wastageKg: number;
+  sizes: SizeBreakdown;
   createdAt: string;
   journey: BundleJourneyStage[];
   payments: BundlePaymentRow[];
@@ -716,6 +717,14 @@ export const mockBundleRecords: MockBundleRecord[] = [
     totalPieces: 974,
     fabricIssuedKg: 110,
     wastageKg: 1.25,
+    sizes: {
+      qty_0_3M: 160,
+      qty_3_6M: 180,
+      qty_6_9M: 200,
+      qty_9_12M: 150,
+      qty_12_18M: 140,
+      qty_18_24M: 140,
+    },
     createdAt: "2024-01-20",
     journey: [
       {
@@ -815,6 +824,14 @@ export const mockBundleRecords: MockBundleRecord[] = [
     totalPieces: 920,
     fabricIssuedKg: 120.5,
     wastageKg: 18.2,
+    sizes: {
+      qty_0_3M: 200,
+      qty_3_6M: 400,
+      qty_6_9M: 320,
+      qty_9_12M: 0,
+      qty_12_18M: 0,
+      qty_18_24M: 0,
+    },
     createdAt: "2023-10-24",
     journey: [
       {
@@ -879,6 +896,14 @@ export const mockBundleRecords: MockBundleRecord[] = [
     totalPieces: 965,
     fabricIssuedKg: 98.4,
     wastageKg: 12.5,
+    sizes: {
+      qty_0_3M: 150,
+      qty_3_6M: 200,
+      qty_6_9M: 200,
+      qty_9_12M: 150,
+      qty_12_18M: 100,
+      qty_18_24M: 50,
+    },
     createdAt: "2024-01-20",
     journey: [
       {

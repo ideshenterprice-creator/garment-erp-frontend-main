@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, Filter, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   mockWastageEntries,
   type MockWastageEntry,
@@ -12,9 +12,8 @@ import { Pagination } from "@/components/common/Pagination";
 import { RecordWastageDrawer } from "@/components/modules/inventory/RecordWastageDrawer";
 import { WastageStatCards } from "@/components/modules/inventory/WastageStatCards";
 import { WastageTable } from "@/components/modules/inventory/WastageTable";
-import { Button } from "@/components/ui/button";
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 10;
 
 export default function CuttingWastagePage() {
   const [loading, setLoading] = useState(true);
@@ -50,7 +49,7 @@ export default function CuttingWastagePage() {
         subtitle="Fabric leftover from cutting. Tracked separately because wastage is sold and its value must be recorded."
         actionButton={
           <PageHeaderAction
-            label="+ Record Wastage Return"
+            label="Record Wastage Return"
             icon={<Plus className="size-4" />}
             onClick={() => setDrawerOpen(true)}
           />
@@ -64,16 +63,8 @@ export default function CuttingWastagePage() {
       />
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+        <div className="border-b border-slate-200 px-4 py-3">
           <h2 className="text-base font-semibold text-slate-900">Wastage Logs</h2>
-          <div className="flex items-center gap-1">
-            <Button type="button" variant="ghost" size="icon" className="size-8">
-              <Filter className="size-4" />
-            </Button>
-            <Button type="button" variant="ghost" size="icon" className="size-8">
-              <Download className="size-4" />
-            </Button>
-          </div>
         </div>
 
         <div className="p-0">

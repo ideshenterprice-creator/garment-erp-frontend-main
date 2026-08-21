@@ -2,14 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
+import { toast } from "sonner";
 import { mockGSTRates, type MockGSTRate } from "@/mock/masters";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { GSTTable } from "@/components/modules/masters/GSTTable";
 import { GSTDrawer } from "@/components/modules/masters/GSTDrawer";
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 10;
 
 export default function GSTMasterPage() {
   const [loading, setLoading] = useState(true);
@@ -17,6 +19,7 @@ export default function GSTMasterPage() {
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<MockGSTRate | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MockGSTRate | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 400);
@@ -36,7 +39,7 @@ export default function GSTMasterPage() {
         subtitle="GST rates for each product category. Applied automatically on all purchase and sales bills based on the defined fiscal logic."
         actionButton={
           <PageHeaderAction
-            label="+ Add GST Rate"
+            label="Add GST Rate"
             icon={<Plus className="size-4" />}
             onClick={() => {
               setEditing(null);
@@ -56,6 +59,7 @@ export default function GSTMasterPage() {
               setEditing(rate);
               setDrawerOpen(true);
             }}
+            onDelete={setDeleteTarget}
             onAdd={() => {
               setEditing(null);
               setDrawerOpen(true);
@@ -87,6 +91,20 @@ export default function GSTMasterPage() {
             }
             return [rate, ...prev];
           });
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title={`Delete ${deleteTarget?.category ?? "GST rate"}?`}
+        description="This tax category will be removed from the GST master."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          setRates((prev) => prev.filter((item) => item.id !== deleteTarget.id));
+          toast.success("GST rate deleted");
+          setPage(1);
         }}
       />
     </div>

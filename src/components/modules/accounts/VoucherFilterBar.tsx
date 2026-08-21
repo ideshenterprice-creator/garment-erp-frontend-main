@@ -1,8 +1,6 @@
 "use client";
 
-import { Download, Filter } from "lucide-react";
 import type { VoucherType } from "@/mock/accounts";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type VoucherFilter = "ALL" | VoucherType;
@@ -10,7 +8,6 @@ export type VoucherFilter = "ALL" | VoucherType;
 interface VoucherFilterBarProps {
   filter: VoucherFilter;
   onChange: (filter: VoucherFilter) => void;
-  onExport?: () => void;
 }
 
 const tabs: { label: string; value: VoucherFilter }[] = [
@@ -22,7 +19,6 @@ const tabs: { label: string; value: VoucherFilter }[] = [
 export function VoucherFilterBar({
   filter,
   onChange,
-  onExport,
 }: VoucherFilterBarProps) {
   return (
     <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -42,16 +38,6 @@ export function VoucherFilterBar({
             {tab.label}
           </button>
         ))}
-      </div>
-      <div className="flex items-center gap-2">
-        <Button type="button" variant="outline" size="sm">
-          <Filter className="size-4" />
-          Filters
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={onExport}>
-          <Download className="size-4" />
-          Export
-        </Button>
       </div>
     </div>
   );

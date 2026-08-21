@@ -1,11 +1,9 @@
 "use client";
 
-import { Eye } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import type { MockColoringEntry } from "@/mock/production";
 import { EmptyState } from "@/components/common/EmptyState";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -30,7 +28,7 @@ export function ColoringTable({ entries, onAdd }: ColoringTableProps) {
       <EmptyState
         title="No coloring entries found"
         description="Record a coloring entry after printing is complete."
-        actionLabel="+ Record Coloring Entry"
+        actionLabel="Record Coloring Entry"
         onAction={onAdd}
       />
     );
@@ -72,14 +70,17 @@ export function ColoringTable({ entries, onAdd }: ColoringTableProps) {
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Karigar
               </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Actions
-              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {entries.map((entry) => (
-              <TableRow key={entry.id}>
+              <TableRow
+                key={entry.id}
+                className="cursor-pointer"
+                onClick={() =>
+                  router.push(ROUTES.PRODUCTION.BUNDLE_DETAIL(entry.bundleNumber))
+                }
+              >
                 <TableCell className="font-semibold text-slate-900">
                   {entry.entryNumber}
                 </TableCell>
@@ -117,21 +118,6 @@ export function ColoringTable({ entries, onAdd }: ColoringTableProps) {
                   </span>
                 </TableCell>
                 <TableCell>{entry.karigarName}</TableCell>
-                <TableCell>
-                  <Button
-                    type="button"
-                    variant="link"
-                    className="h-auto p-0 text-teal-700"
-                    onClick={() =>
-                      router.push(
-                        ROUTES.PRODUCTION.BUNDLE_DETAIL(entry.bundleNumber)
-                      )
-                    }
-                  >
-                    <Eye className="mr-1 size-3.5" />
-                    View
-                  </Button>
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>

@@ -11,7 +11,6 @@ import { DrawerForm } from "@/components/common/DrawerForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -25,7 +24,6 @@ const gstSchema = z.object({
   gstPercent: z.number().min(0, "GST rate is required"),
   taxType: z.enum(["ZERO_RATED", "IGST", "CGST_SGST"]),
   effectiveFrom: z.string().min(1, "Effective from date is required"),
-  notes: z.string().optional(),
   applicableOn: z.string().min(1, "Applicable on is required"),
 });
 
@@ -43,7 +41,6 @@ const defaultValues: GSTFormValues = {
   gstPercent: 12,
   taxType: "CGST_SGST",
   effectiveFrom: "",
-  notes: "",
   applicableOn: "In-state Purchase",
 };
 
@@ -72,7 +69,6 @@ export function GSTDrawer({ open, onClose, rate, onSave }: GSTDrawerProps) {
         gstPercent: rate.gstPercent,
         taxType: rate.taxType,
         effectiveFrom: rate.effectiveFrom ?? "",
-        notes: rate.notes,
         applicableOn: rate.applicableOn,
       });
     } else {
@@ -87,7 +83,7 @@ export function GSTDrawer({ open, onClose, rate, onSave }: GSTDrawerProps) {
       gstPercent: values.gstPercent,
       taxType: values.taxType as TaxType,
       applicableOn: values.applicableOn,
-      notes: values.notes ?? "",
+      notes: rate?.notes ?? "",
       effectiveFrom: values.effectiveFrom,
     };
 
@@ -208,21 +204,6 @@ export function GSTDrawer({ open, onClose, rate, onSave }: GSTDrawerProps) {
               {errors.applicableOn.message}
             </p>
           ) : null}
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label
-            htmlFor="notes"
-            className="text-[11px] font-semibold uppercase tracking-wider text-slate-400"
-          >
-            Remarks
-          </Label>
-          <Textarea
-            id="notes"
-            rows={4}
-            placeholder="Brief explanation of the tax applicability..."
-            {...register("notes")}
-          />
         </div>
       </form>
     </DrawerForm>

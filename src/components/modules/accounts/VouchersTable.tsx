@@ -4,7 +4,6 @@ import { format } from "date-fns";
 import type { MockVoucher } from "@/mock/accounts";
 import { EmptyState } from "@/components/common/EmptyState";
 import { VoucherTypeBadge } from "@/components/modules/accounts/VoucherTypeBadge";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -18,16 +17,20 @@ import { formatCurrency } from "@/lib/utils";
 interface VouchersTableProps {
   vouchers: MockVoucher[];
   onAdd?: () => void;
-  onView?: (voucher: MockVoucher) => void;
+  onRowClick?: (voucher: MockVoucher) => void;
 }
 
-export function VouchersTable({ vouchers, onAdd, onView }: VouchersTableProps) {
+export function VouchersTable({
+  vouchers,
+  onAdd,
+  onRowClick,
+}: VouchersTableProps) {
   if (vouchers.length === 0) {
     return (
       <EmptyState
         title="No vouchers found"
         description="Create a voucher for expenses, advances, or bank transfers."
-        actionLabel="+ New Voucher"
+        actionLabel="New Voucher"
         onAction={onAdd}
       />
     );
@@ -60,19 +63,20 @@ export function VouchersTable({ vouchers, onAdd, onView }: VouchersTableProps) {
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Reference
               </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Actions
-              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {vouchers.map((voucher) => (
-              <TableRow key={voucher.id}>
+              <TableRow
+                key={voucher.id}
+                className={onRowClick ? "cursor-pointer" : undefined}
+                onClick={() => onRowClick?.(voucher)}
+              >
                 <TableCell className="font-semibold">
                   {voucher.voucherNumber}
                 </TableCell>
                 <TableCell>
-                  {format(new Date(voucher.date), "dd MMM")}
+                  {format(new Date(voucher.date), "dd MMM yyyy")}
                 </TableCell>
                 <TableCell>
                   <VoucherTypeBadge type={voucher.type} />
@@ -83,16 +87,6 @@ export function VouchersTable({ vouchers, onAdd, onView }: VouchersTableProps) {
                 </TableCell>
                 <TableCell>{voucher.paymentMode}</TableCell>
                 <TableCell>{voucher.referenceNo || "—"}</TableCell>
-                <TableCell>
-                  <Button
-                    type="button"
-                    variant="link"
-                    className="h-auto p-0 font-semibold"
-                    onClick={() => onView?.(voucher)}
-                  >
-                    View
-                  </Button>
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>

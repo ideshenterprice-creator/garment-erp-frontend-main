@@ -11,7 +11,7 @@ import {
 } from "@/components/modules/inventory/IssueHistoryFilterBar";
 import { IssueHistoryTable } from "@/components/modules/inventory/IssueHistoryTable";
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 10;
 
 const defaultFilters: IssueHistoryFilters = {
   dateRange: "THIS_MONTH",

@@ -2,20 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Users, Wallet, Wrench } from "lucide-react";
+import { Layers, Plus, UserX, Users } from "lucide-react";
+import { toast } from "sonner";
 import { mockKarigars } from "@/mock/masters";
 import type { KarigarProfile } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { FilterBar } from "@/components/common/FilterBar";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
+import { Pagination } from "@/components/common/Pagination";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { KarigarTable } from "@/components/modules/masters/KarigarTable";
 import { KarigarDrawer } from "@/components/modules/masters/KarigarDrawer";
-import { Pagination } from "@/components/common/Pagination";
 
 type KarigarFilter = "ALL" | "PIECE_RATE" | "WEEKLY_SALARY" | "BOTH";
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 10;
 
 export default function KarigarMasterPage() {
   const router = useRouter();
@@ -25,6 +27,7 @@ export default function KarigarMasterPage() {
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<KarigarProfile | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<KarigarProfile | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 400);
@@ -39,10 +42,14 @@ export default function KarigarMasterPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const activeCount = karigars.filter((item) => item.isActive).length;
-  const pieceRateCount = karigars.filter(
-    (item) => item.paymentType === "PIECE_RATE" || item.paymentType === "BOTH"
-  ).length;
+  const stats = useMemo(
+    () => ({
+      total: karigars.length,
+      inactive: karigars.filter((item) => !item.isActive).length,
+      withOps: karigars.filter((item) => item.operations.length > 0).length,
+    }),
+    [karigars]
+  );
 
   return (
     <div>
@@ -51,7 +58,7 @@ export default function KarigarMasterPage() {
         subtitle="Manage karigar profiles, payment types, and assigned operations."
         actionButton={
           <PageHeaderAction
-            label="+ Add Karigar"
+            label="Add Karigar"
             icon={<Plus className="size-4" />}
             onClick={() => {
               setEditing(null);
@@ -64,21 +71,21 @@ export default function KarigarMasterPage() {
       <div className="mb-6 grid gap-4 md:grid-cols-3">
         <StatCard
           label="Total Karigars"
-          value={String(karigars.length).padStart(2, "0")}
+          value={stats.total}
           accent="purple"
           icon={<Users className="size-5" />}
         />
         <StatCard
-          label="Active Profiles"
-          value={String(activeCount).padStart(2, "0")}
-          accent="blue"
-          icon={<Wrench className="size-5" />}
+          label="Inactive"
+          value={stats.inactive}
+          accent="red"
+          icon={<UserX className="size-5" />}
         />
         <StatCard
-          label="Piece Rate Enabled"
-          value={String(pieceRateCount).padStart(2, "0")}
-          accent="yellow"
-          icon={<Wallet className="size-5" />}
+          label="With Operations"
+          value={stats.withOps}
+          accent="blue"
+          icon={<Layers className="size-5" />}
         />
       </div>
 
@@ -109,6 +116,7 @@ export default function KarigarMasterPage() {
               setEditing(karigar);
               setDrawerOpen(true);
             }}
+            onDelete={setDeleteTarget}
             onAdd={() => {
               setEditing(null);
               setDrawerOpen(true);
@@ -142,6 +150,22 @@ export default function KarigarMasterPage() {
             }
             return [karigar, ...prev];
           });
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title={`Delete ${deleteTarget?.party.name ?? "karigar"}?`}
+        description="This karigar profile will be removed from the master list."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          setKarigars((prev) =>
+            prev.filter((item) => item.id !== deleteTarget.id)
+          );
+          toast.success(`${deleteTarget.party.name} deleted`);
+          setPage(1);
         }}
       />
     </div>

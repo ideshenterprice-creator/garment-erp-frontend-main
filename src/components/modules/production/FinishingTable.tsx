@@ -4,7 +4,6 @@ import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import type { MockFinishingEntry } from "@/mock/production";
 import { EmptyState } from "@/components/common/EmptyState";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -36,7 +35,7 @@ export function FinishingTable({ entries, onAdd }: FinishingTableProps) {
       <EmptyState
         title="No finishing entries found"
         description="Record finishing operations after stitching is complete."
-        actionLabel="+ Record Finishing Entry"
+        actionLabel="Record Finishing Entry"
         onAction={onAdd}
       />
     );
@@ -75,14 +74,17 @@ export function FinishingTable({ entries, onAdd }: FinishingTableProps) {
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Karigar
               </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Actions
-              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {entries.map((entry) => (
-              <TableRow key={entry.id}>
+              <TableRow
+                key={entry.id}
+                className="cursor-pointer"
+                onClick={() =>
+                  router.push(ROUTES.PRODUCTION.BUNDLE_DETAIL(entry.bundleNumber))
+                }
+              >
                 <TableCell className="font-semibold text-slate-900">
                   {entry.entryNumber}
                 </TableCell>
@@ -110,20 +112,6 @@ export function FinishingTable({ entries, onAdd }: FinishingTableProps) {
                   {entry.piecesCompleted.toLocaleString("en-IN")} pcs
                 </TableCell>
                 <TableCell>{entry.karigarName}</TableCell>
-                <TableCell>
-                  <Button
-                    type="button"
-                    variant="link"
-                    className="h-auto p-0 text-teal-700"
-                    onClick={() =>
-                      router.push(
-                        ROUTES.PRODUCTION.BUNDLE_DETAIL(entry.bundleNumber)
-                      )
-                    }
-                  >
-                    View
-                  </Button>
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>

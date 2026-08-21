@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Filter, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { mockPurchaseBills, type MockPurchaseBill } from "@/mock/purchase";
 import type { PurchaseBillStatus } from "@/types";
@@ -13,13 +13,12 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { BillStatCards } from "@/components/modules/purchase/BillStatCards";
 import { BillsTable } from "@/components/modules/purchase/BillsTable";
 import { ReturnBillDialog } from "@/components/modules/purchase/ReturnBillDialog";
-import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
 import { cn, formatCurrency } from "@/lib/utils";
 
 type BillFilter = "ALL" | PurchaseBillStatus;
 
-const PAGE_SIZE = 7;
+const PAGE_SIZE = 10;
 
 const filterTabs: { label: string; value: BillFilter }[] = [
   { label: "All", value: "ALL" },
@@ -61,7 +60,7 @@ export default function PurchaseBillsPage() {
         subtitle="All fabric and material purchases. Stock updates automatically when a bill is confirmed."
         actionButton={
           <PageHeaderAction
-            label="+ New Purchase Bill"
+            label="New Purchase Bill"
             icon={<Plus className="size-4" />}
             onClick={() => router.push(ROUTES.PURCHASE.NEW)}
           />
@@ -69,36 +68,33 @@ export default function PurchaseBillsPage() {
       />
 
       <BillStatCards
-        totalBillsThisMonth={12}
-        totalFabricPurchasedKg={8400}
+        totalBillsThisMonth={bills.length}
+        totalFabricPurchasedKg={bills.reduce(
+          (sum, bill) => sum + bill.netWeight,
+          0
+        )}
         pendingApproval={bills.filter((bill) => bill.status === "PENDING").length}
       />
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-1 rounded-lg bg-slate-100 p-1">
-          {filterTabs.map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              onClick={() => {
-                setFilter(tab.value);
-                setPage(1);
-              }}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                filter === tab.value
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <Button type="button" variant="ghost" size="sm" className="text-slate-600">
-          <Filter className="size-4" />
-          Advanced Filters
-        </Button>
+      <div className="mb-4 flex flex-wrap items-center gap-1 rounded-lg bg-slate-100 p-1 w-fit">
+        {filterTabs.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => {
+              setFilter(tab.value);
+              setPage(1);
+            }}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              filter === tab.value
+                ? "bg-slate-900 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -107,19 +103,17 @@ export default function PurchaseBillsPage() {
         <>
           <BillsTable
             bills={pageItems}
-            onView={(bill) => router.push(ROUTES.PURCHASE.DETAIL(bill.id))}
+            onRowClick={(bill) => router.push(ROUTES.PURCHASE.DETAIL(bill.id))}
             onConfirm={setConfirmTarget}
             onReturn={setReturnTarget}
             onAdd={() => router.push(ROUTES.PURCHASE.NEW)}
           />
           <Pagination
             page={page}
-            totalPages={Math.max(totalPages, 3)}
-            totalItems={filter === "ALL" ? 42 : filtered.length}
+            totalPages={totalPages}
+            totalItems={filtered.length}
             pageSize={PAGE_SIZE}
-            onPageChange={(next) =>
-              setPage(Math.min(next, Math.max(1, totalPages)))
-            }
+            onPageChange={setPage}
             label="bills"
           />
         </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { History, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import type { MockStockItem } from "@/mock/inventory";
 import { getUnitLabel } from "@/mock/inventory";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -19,23 +19,17 @@ import { cn } from "@/lib/utils";
 
 interface StockTableProps {
   items: MockStockItem[];
-  onViewHistory: (item: MockStockItem) => void;
   onAdjust: (item: MockStockItem) => void;
   onAdd?: () => void;
 }
 
-export function StockTable({
-  items,
-  onViewHistory,
-  onAdjust,
-  onAdd,
-}: StockTableProps) {
+export function StockTable({ items, onAdjust, onAdd }: StockTableProps) {
   if (items.length === 0) {
     return (
       <EmptyState
         title="No stock items found"
         description="Try changing filters or add a new stock entry."
-        actionLabel="+ Add Entry"
+        actionLabel="Add Entry"
         onAction={onAdd}
       />
     );
@@ -111,28 +105,16 @@ export function StockTable({
                     {item.lastUpdatedLabel}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 text-slate-500"
-                        aria-label="View history"
-                        onClick={() => onViewHistory(item)}
-                      >
-                        <History className="size-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 text-slate-500"
-                        aria-label="Adjust stock"
-                        onClick={() => onAdjust(item)}
-                      >
-                        <SlidersHorizontal className="size-4" />
-                      </Button>
-                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-slate-500"
+                      aria-label="Adjust stock"
+                      onClick={() => onAdjust(item)}
+                    >
+                      <SlidersHorizontal className="size-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               );

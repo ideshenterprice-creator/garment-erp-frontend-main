@@ -19,6 +19,7 @@ import {
 } from "@/mock/production";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
+import { Pagination } from "@/components/common/Pagination";
 import { ColoringTable } from "@/components/modules/production/ColoringTable";
 import { CuttingTable } from "@/components/modules/production/CuttingTable";
 import { FinishingTable } from "@/components/modules/production/FinishingTable";
@@ -33,6 +34,8 @@ import { RecordPrintingDrawer } from "@/components/modules/production/RecordPrin
 import { RecordStitchingDrawer } from "@/components/modules/production/RecordStitchingDrawer";
 import { StitchingTable } from "@/components/modules/production/StitchingTable";
 import { formatCurrency } from "@/lib/utils";
+
+const PAGE_SIZE = 10;
 
 const defaultFilters: ProductionFilters = {
   poId: "ALL",
@@ -54,6 +57,7 @@ export default function ProductionPage() {
   const [activeTab, setActiveTab] = useState<ProductionStageTab>("CUTTING");
   const [filters, setFilters] = useState<ProductionFilters>(defaultFilters);
   const [applied, setApplied] = useState<ProductionFilters>(defaultFilters);
+  const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [cutting, setCutting] = useState<MockCuttingEntry[]>(mockCuttingEntries);
@@ -239,6 +243,31 @@ export default function ProductionPage() {
     filteredFinishing,
   ]);
 
+  const activeRows =
+    activeTab === "CUTTING"
+      ? filteredCutting
+      : activeTab === "PRINTING"
+        ? filteredPrinting
+        : activeTab === "COLORING"
+          ? filteredColoring
+          : activeTab === "STITCHING"
+            ? filteredStitching
+            : filteredFinishing;
+
+  const totalPages = Math.max(1, Math.ceil(activeRows.length / PAGE_SIZE));
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pageCutting = filteredCutting.slice(pageStart, pageStart + PAGE_SIZE);
+  const pagePrinting = filteredPrinting.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageColoring = filteredColoring.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageStitching = filteredStitching.slice(
+    pageStart,
+    pageStart + PAGE_SIZE
+  );
+  const pageFinishing = filteredFinishing.slice(
+    pageStart,
+    pageStart + PAGE_SIZE
+  );
+
   return (
     <div>
       <PageHeader
@@ -253,12 +282,21 @@ export default function ProductionPage() {
         }
       />
 
-      <ProductionTabs activeTab={activeTab} onChange={setActiveTab} />
+      <ProductionTabs
+        activeTab={activeTab}
+        onChange={(tab) => {
+          setActiveTab(tab);
+          setPage(1);
+        }}
+      />
 
       <ProductionFilterBar
         filters={filters}
         onChange={setFilters}
-        onApply={() => setApplied(filters)}
+        onApply={() => {
+          setApplied(filters);
+          setPage(1);
+        }}
       />
 
       {loading ? (
@@ -267,34 +305,43 @@ export default function ProductionPage() {
         <>
           {activeTab === "CUTTING" ? (
             <CuttingTable
-              entries={filteredCutting}
+              entries={pageCutting}
               onAdd={() => setDrawerOpen(true)}
             />
           ) : null}
           {activeTab === "PRINTING" ? (
             <PrintingTable
-              entries={filteredPrinting}
+              entries={pagePrinting}
               onAdd={() => setDrawerOpen(true)}
             />
           ) : null}
           {activeTab === "COLORING" ? (
             <ColoringTable
-              entries={filteredColoring}
+              entries={pageColoring}
               onAdd={() => setDrawerOpen(true)}
             />
           ) : null}
           {activeTab === "STITCHING" ? (
             <StitchingTable
-              entries={filteredStitching}
+              entries={pageStitching}
               onAdd={() => setDrawerOpen(true)}
             />
           ) : null}
           {activeTab === "FINISHING" ? (
             <FinishingTable
-              entries={filteredFinishing}
+              entries={pageFinishing}
               onAdd={() => setDrawerOpen(true)}
             />
           ) : null}
+
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalItems={activeRows.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            label="entries"
+          />
 
           <ProductionSummaryBar stats={summaryStats} />
         </>

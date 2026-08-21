@@ -85,10 +85,26 @@ export default function SalesBillDetailPage() {
             Invoice — {bill.invoiceNumber}
             <SalesBillStatusBadge status={bill.status} />
           </h1>
-          <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
             <MapPin className="size-3.5" />
-            {bill.buyer.name}, {bill.buyer.city} — {bill.po.poNumber} —{" "}
-            {format(new Date(bill.invoiceDate), "dd MMM yyyy")}
+            <button
+              type="button"
+              className="font-medium text-[#1b3a3a] hover:underline"
+              onClick={() => router.push(`/masters/party/${bill.buyerId}`)}
+            >
+              {bill.buyer.name}
+            </button>
+            , {bill.buyer.city} —{" "}
+            <button
+              type="button"
+              className="font-medium text-[#1b3a3a] hover:underline"
+              onClick={() =>
+                router.push(ROUTES.PURCHASE_ORDERS.DETAIL(bill.poId))
+              }
+            >
+              {bill.po.poNumber}
+            </button>{" "}
+            — {format(new Date(bill.invoiceDate), "dd MMM yyyy")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

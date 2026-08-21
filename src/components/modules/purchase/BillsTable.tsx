@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Eye, Undo2 } from "lucide-react";
+import { Check, Undo2 } from "lucide-react";
 import { format } from "date-fns";
 import type { MockPurchaseBill } from "@/mock/purchase";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -18,7 +18,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 
 interface BillsTableProps {
   bills: MockPurchaseBill[];
-  onView: (bill: MockPurchaseBill) => void;
+  onRowClick: (bill: MockPurchaseBill) => void;
   onConfirm: (bill: MockPurchaseBill) => void;
   onReturn: (bill: MockPurchaseBill) => void;
   onAdd?: () => void;
@@ -32,7 +32,7 @@ const fabricBadgeClass: Record<MockPurchaseBill["fabricBadge"], string> = {
 
 export function BillsTable({
   bills,
-  onView,
+  onRowClick,
   onConfirm,
   onReturn,
   onAdd,
@@ -42,7 +42,7 @@ export function BillsTable({
       <EmptyState
         title="No purchase bills found"
         description="Try changing filters or create a new purchase bill."
-        actionLabel="+ New Purchase Bill"
+        actionLabel="New Purchase Bill"
         onAction={onAdd}
       />
     );
@@ -85,7 +85,11 @@ export function BillsTable({
           </TableHeader>
           <TableBody>
             {bills.map((bill) => (
-              <TableRow key={bill.id}>
+              <TableRow
+                key={bill.id}
+                className="cursor-pointer"
+                onClick={() => onRowClick(bill)}
+              >
                 <TableCell className="font-semibold text-slate-900">
                   {bill.billNumber}
                 </TableCell>
@@ -115,23 +119,16 @@ export function BillsTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-slate-500"
-                      onClick={() => onView(bill)}
-                      aria-label="View bill"
-                    >
-                      <Eye className="size-4" />
-                    </Button>
                     {bill.status === "PENDING" ? (
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         className="size-8 text-emerald-600 hover:text-emerald-700"
-                        onClick={() => onConfirm(bill)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onConfirm(bill);
+                        }}
                         aria-label="Confirm bill"
                       >
                         <Check className="size-4" />
@@ -148,7 +145,10 @@ export function BillsTable({
                           : "text-slate-300"
                       )}
                       disabled={bill.status !== "CONFIRMED"}
-                      onClick={() => onReturn(bill)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onReturn(bill);
+                      }}
                       aria-label="Return bill"
                     >
                       <Undo2 className="size-4" />

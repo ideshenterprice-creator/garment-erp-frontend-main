@@ -7,6 +7,7 @@ export const ROUTES = {
     ROOT: "/masters",
     PARTY: "/masters/party",
     PRODUCT: "/masters/product",
+    PRODUCT_DETAIL: (id: string) => `/masters/product/${id}`,
     OPERATIONS: "/masters/operations",
     GST: "/masters/gst",
     KARIGAR: "/masters/karigar",
@@ -54,4 +55,5 @@ export const ROUTES = {
   TEAM: {
     ROOT: "/team",
   },
+  NOTIFICATIONS: "/notifications",
 } as const;

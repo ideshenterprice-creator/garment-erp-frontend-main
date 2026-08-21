@@ -16,7 +16,9 @@ import {
 
 interface ProductTableProps {
   products: MockProduct[];
+  onRowClick?: (product: MockProduct) => void;
   onEdit: (product: MockProduct) => void;
+  onDelete: (product: MockProduct) => void;
   onAdd?: () => void;
 }
 
@@ -76,7 +78,13 @@ function ProductIcon({ category }: { category: MockProduct["category"] }) {
   return <Package className="size-4" />;
 }
 
-export function ProductTable({ products, onEdit, onAdd }: ProductTableProps) {
+export function ProductTable({
+  products,
+  onRowClick,
+  onEdit,
+  onDelete,
+  onAdd,
+}: ProductTableProps) {
   if (products.length === 0) {
     return (
       <EmptyState
@@ -118,7 +126,11 @@ export function ProductTable({ products, onEdit, onAdd }: ProductTableProps) {
             {products.map((product) => {
               const status = statusMeta(product.displayStatus);
               return (
-                <TableRow key={product.id}>
+                <TableRow
+                  key={product.id}
+                  className={onRowClick ? "cursor-pointer" : undefined}
+                  onClick={() => onRowClick?.(product)}
+                >
                   <TableCell>
                     <div className="flex items-center gap-2 font-medium text-slate-900">
                       <span className="flex size-8 items-center justify-center rounded-md bg-slate-100 text-slate-600">
@@ -143,15 +155,32 @@ export function ProductTable({ products, onEdit, onAdd }: ProductTableProps) {
                     />
                   </TableCell>
                   <TableCell>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      onClick={() => onEdit(product)}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
+                    <div className="flex items-center gap-0.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onEdit(product);
+                        }}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-red-500 hover:bg-red-50"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onDelete(product);
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               );

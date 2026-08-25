@@ -1,16 +1,14 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { MinusCircle, PlusCircle } from "lucide-react";
 import { toast } from "sonner";
-import {
-  ADJUSTMENT_REASONS,
-  getUnitLabel,
-  type MockStockItem,
-} from "@/mock/inventory";
+import type { AdjustStockPayload, Stock, StockAdjustmentReason } from "@/types";
+import { ADJUSTMENT_REASON_OPTIONS, getUnitLabel } from "@/lib/inventory";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,12 +21,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { getErrorMessage } from "@/lib/errorHandler";
 import { cn } from "@/lib/utils";
+import { adjustStock } from "@/services/inventory.service";
 
 const adjustSchema = z.object({
   adjustmentType: z.enum(["ADD", "REDUCE"]),
   quantity: z.number().positive("Quantity must be greater than 0"),
-  reason: z.string().min(1, "Reason is required"),
+  reason: z.enum([
+    "PHYSICAL_COUNT_CORRECTION",
+    "DAMAGED",
+    "SAMPLE_USED",
+    "OTHER",
+  ]),
   notes: z.string().optional(),
   adjustmentDate: z.string().min(1, "Adjustment date is required"),
 });
@@ -37,40 +43,47 @@ type AdjustFormValues = z.infer<typeof adjustSchema>;
 
 interface AdjustStockDrawerProps {
   open: boolean;
-  item: MockStockItem | null;
+  item: Stock | null;
   onClose: () => void;
-  onSave: (itemId: string, nextQuantity: number) => void;
+}
+
+function todayInputValue(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toIsoDate(dateStr: string): string {
+  return new Date(`${dateStr}T00:00:00.000Z`).toISOString();
 }
 
 export function AdjustStockDrawer({
   open,
   item,
   onClose,
-  onSave,
 }: AdjustStockDrawerProps) {
+  const queryClient = useQueryClient();
+
   const {
     register,
     handleSubmit,
     reset,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<AdjustFormValues>({
     resolver: zodResolver(adjustSchema),
     defaultValues: {
       adjustmentType: "ADD",
-      quantity: 50,
-      reason: "Physical Count Correction",
+      quantity: 0,
+      reason: "PHYSICAL_COUNT_CORRECTION",
       notes: "",
-      adjustmentDate: "2024-05-25",
+      adjustmentDate: todayInputValue(),
     },
   });
 
   const adjustmentType = watch("adjustmentType");
   const quantity = Number(watch("quantity") || 0);
   const unit = item ? getUnitLabel(item.product.unit) : "kg";
-  const currentQty = item?.quantity ?? 0;
-
+  const currentQty = item ? Number(item.quantity) : 0;
   const previewResult =
     adjustmentType === "ADD" ? currentQty + quantity : currentQty - quantity;
   const exceedsStock = adjustmentType === "REDUCE" && quantity > currentQty;
@@ -79,39 +92,62 @@ export function AdjustStockDrawer({
     if (!open || !item) return;
     reset({
       adjustmentType: "ADD",
-      quantity: 50,
-      reason: "Physical Count Correction",
+      quantity: 0,
+      reason: "PHYSICAL_COUNT_CORRECTION",
       notes: "",
-      adjustmentDate: "2024-05-25",
+      adjustmentDate: todayInputValue(),
     });
   }, [open, item, reset]);
 
-  const previewText = useMemo(() => {
-    if (!item || !Number.isFinite(quantity) || quantity <= 0) {
-      return `${currentQty.toLocaleString("en-IN")} ${unit}`;
-    }
-    const op = adjustmentType === "ADD" ? "+" : "−";
-    return `${currentQty.toLocaleString("en-IN")} ${op} ${quantity.toLocaleString("en-IN")} = ${previewResult.toLocaleString("en-IN")} ${unit}`;
-  }, [adjustmentType, currentQty, item, previewResult, quantity, unit]);
+  const adjustMutation = useMutation({
+    mutationFn: ({
+      productId,
+      data,
+    }: {
+      productId: string;
+      data: AdjustStockPayload;
+    }) => adjustStock(productId, data),
+    onSuccess: () => {
+      toast.success("Stock adjusted.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STOCK });
+      onClose();
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to adjust stock."));
+    },
+  });
 
   function onSubmit(values: AdjustFormValues) {
     if (!item) return;
-    if (values.adjustmentType === "REDUCE" && values.quantity > item.quantity) {
+    if (values.adjustmentType === "REDUCE" && values.quantity > currentQty) {
       return;
     }
-    const next =
-      values.adjustmentType === "ADD"
-        ? item.quantity + values.quantity
-        : item.quantity - values.quantity;
-    onSave(item.id, next);
-    toast.success("Stock adjusted successfully");
-    onClose();
+
+    adjustMutation.mutate({
+      productId: item.productId,
+      data: {
+        adjustmentType: values.adjustmentType,
+        quantity: values.quantity,
+        reason: values.reason as StockAdjustmentReason,
+        notes: values.notes?.trim() || undefined,
+        date: toIsoDate(values.adjustmentDate),
+      },
+    });
   }
+
+  const previewText =
+    !item || !Number.isFinite(quantity) || quantity <= 0
+      ? `${currentQty.toLocaleString("en-IN")} ${unit}`
+      : `${currentQty.toLocaleString("en-IN")} ${
+          adjustmentType === "ADD" ? "+" : "−"
+        } ${quantity.toLocaleString("en-IN")} = ${previewResult.toLocaleString("en-IN")} ${unit}`;
 
   return (
     <DrawerForm
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        if (!adjustMutation.isPending) onClose();
+      }}
       title="Adjust Stock"
       description={item?.product.name}
       footer={
@@ -119,12 +155,20 @@ export function AdjustStockDrawer({
           <Button
             type="submit"
             form="adjust-stock-form"
-            disabled={isSubmitting || exceedsStock || !item}
+            disabled={
+              adjustMutation.isPending || exceedsStock || !item || quantity <= 0
+            }
             className="w-full bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
           >
-            Save Adjustment
+            {adjustMutation.isPending ? "Saving..." : "Save Adjustment"}
           </Button>
-          <Button type="button" variant="ghost" className="w-full" onClick={onClose}>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            disabled={adjustMutation.isPending}
+            onClick={onClose}
+          >
             Cancel
           </Button>
         </div>
@@ -184,14 +228,13 @@ export function AdjustStockDrawer({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="quantity">
-              Quantity ({unit.toUpperCase()})
-            </Label>
+            <Label htmlFor="quantity">Quantity ({unit.toUpperCase()})</Label>
             <div className="relative">
               <Input
                 id="quantity"
                 type="number"
                 step="any"
+                min={0}
                 className="pr-12"
                 {...register("quantity", { valueAsNumber: true })}
               />
@@ -200,7 +243,9 @@ export function AdjustStockDrawer({
               </span>
             </div>
             {errors.quantity ? (
-              <p className="text-sm text-destructive">{errors.quantity.message}</p>
+              <p className="text-sm text-destructive">
+                {errors.quantity.message}
+              </p>
             ) : null}
             {exceedsStock ? (
               <p className="text-sm text-destructive">
@@ -215,16 +260,18 @@ export function AdjustStockDrawer({
             <Select
               value={watch("reason")}
               onValueChange={(value) =>
-                setValue("reason", value, { shouldValidate: true })
+                setValue("reason", value as StockAdjustmentReason, {
+                  shouldValidate: true,
+                })
               }
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select reason" />
               </SelectTrigger>
               <SelectContent>
-                {ADJUSTMENT_REASONS.map((reason) => (
-                  <SelectItem key={reason} value={reason}>
-                    {reason}
+                {ADJUSTMENT_REASON_OPTIONS.map((reason) => (
+                  <SelectItem key={reason.value} value={reason.value}>
+                    {reason.label}
                   </SelectItem>
                 ))}
               </SelectContent>

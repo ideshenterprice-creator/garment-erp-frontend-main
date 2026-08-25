@@ -453,13 +453,45 @@ export interface PurchaseRegisterResponse {
   };
 }
 
+export type WastageStatus = "IN_STOCK" | "SOLD";
+
+export type StockAdjustmentType = "ADD" | "REDUCE";
+
+export type StockAdjustmentReason =
+  | "PHYSICAL_COUNT_CORRECTION"
+  | "DAMAGED"
+  | "SAMPLE_USED"
+  | "OTHER";
+
+export interface StockProduct {
+  id: string;
+  productCode?: string;
+  name: string;
+  category: ProductCategory;
+  unit: ProductUnit;
+}
+
 export interface Stock {
   id: string;
   productId: string;
-  product: Product;
+  product: StockProduct;
   quantity: number;
   lastUpdated: string;
   stockStatus: StockStatus;
+}
+
+export interface AdjustStockPayload {
+  adjustmentType: StockAdjustmentType;
+  quantity: number;
+  reason: StockAdjustmentReason;
+  notes?: string;
+  date?: string;
+}
+
+export interface IssueRecordPO {
+  id: string;
+  poNumber: string;
+  status?: PurchaseOrderStatus;
 }
 
 export interface IssueRecord {
@@ -468,23 +500,367 @@ export interface IssueRecord {
   issueDate: string;
   issueType: IssueType;
   productId: string;
-  product: Product;
+  product: StockProduct;
   poId: string;
-  po: PurchaseOrder;
+  po: IssueRecordPO;
+  poItemId?: string;
   karigarId: string;
-  karigar: Party;
+  karigar: Pick<Party, "id" | "partyNumber" | "name" | "type" | "contact">;
   quantityIssued: number;
   bundleNumber: string;
   status: IssueStatus;
+  notes?: string | null;
+  bundles?: Array<{
+    id: string;
+    bundleNumber: string;
+    currentStage: BundleStage;
+    status: BundleStatus;
+  }>;
+}
+
+export interface CreateIssuePayload {
+  issueDate: string;
+  issueType: IssueType;
+  productId: string;
+  poId: string;
+  poItemId: string;
+  karigarId: string;
+  quantityIssued: number;
+  notes?: string;
+}
+
+export interface CuttingWastage {
+  id: string;
+  wastageNumber: string;
+  poId: string;
+  po: IssueRecordPO;
+  designCode: string;
+  fabricTypeId: string;
+  fabricType: StockProduct;
+  wastageQty: number;
+  returnedById: string;
+  returnedBy: Pick<Party, "id" | "partyNumber" | "name" | "type">;
+  dateOfReturn: string;
+  remarks: string | null;
+  status: WastageStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface WastageSummary {
+  totalWastageInStock: number;
+  totalWastageSold: number;
+  totalWastageValue: number;
+}
+
+export interface WastageListResponse {
+  data: CuttingWastage[];
+  total: number;
+  page: number;
+  limit: number;
+  summary: WastageSummary;
+}
+
+export interface CreateWastagePayload {
+  poId: string;
+  designCode: string;
+  fabricProductId: string;
+  wastageQty: number;
+  returnedByPartyId: string;
+  dateOfReturn: string;
+  remarks?: string;
 }
 
 export interface Bundle {
   id: string;
   bundleNumber: string;
   poId: string;
-  poItemId: string;
+  poItemId: string | null;
   currentStage: BundleStage;
   status: BundleStatus;
+  po?: IssueRecordPO;
+  poItem?: Pick<POItem, "id" | "designNumber" | "garmentType" | "color"> | null;
+  issue?: {
+    id: string;
+    issueNumber: string;
+    quantityIssued: number;
+    karigarId?: string;
+    karigar?: Pick<Party, "id" | "name">;
+  } | null;
+  createdAt?: string;
+}
+
+export type ProductionStageTab =
+  | "CUTTING"
+  | "PRINTING"
+  | "COLORING"
+  | "STITCHING"
+  | "FINISHING";
+
+export interface ProductionFilters {
+  poId: string;
+  from: string;
+  to: string;
+  karigarId: string;
+}
+
+export interface SizeBreakdown {
+  qty_0_3M: number;
+  qty_3_6M: number;
+  qty_6_9M: number;
+  qty_9_12M: number;
+  qty_12_18M: number;
+  qty_18_24M: number;
+}
+
+export interface ProductionPartyRef {
+  id: string;
+  name: string;
+  partyNumber?: string;
+}
+
+export interface ProductionBundleRef {
+  id: string;
+  bundleNumber: string;
+  currentStage?: BundleStage;
+  status?: BundleStatus;
+}
+
+export interface CuttingEntry extends SizeBreakdown {
+  id: string;
+  entryNumber: string;
+  entryDate: string;
+  bundleId: string;
+  poId: string;
+  poItemId: string;
+  karigarId: string;
+  fabricIssuedKg: number;
+  totalPiecesCut: number;
+  wastageKg: number;
+  karigar?: ProductionPartyRef;
+  po?: IssueRecordPO;
+  bundle?: ProductionBundleRef;
+  poItem?: Pick<POItem, "id" | "designNumber" | "garmentType" | "color">;
+}
+
+export interface CuttingListSummary {
+  totalPiecesCut: number;
+  totalWastageKg: number;
+  totalKarigarPaymentDue: number;
+}
+
+export interface CreateCuttingPayload extends SizeBreakdown {
+  entryDate: string;
+  bundleId: string;
+  poId: string;
+  poItemId: string;
+  karigarId: string;
+  wastageKg: number;
+}
+
+export interface PrintingEntry {
+  id: string;
+  entryNumber: string;
+  entryDate: string;
+  bundleId: string;
+  poId: string;
+  karigarId: string;
+  piecesReceived: number;
+  piecesReturned: number;
+  piecesRejected: number;
+  karigar?: ProductionPartyRef;
+  po?: IssueRecordPO;
+  bundle?: ProductionBundleRef;
+}
+
+export interface PrintingListSummary {
+  totalPiecesReturned: number;
+  totalPiecesRejected: number;
+  totalKarigarPaymentDue: number;
+}
+
+export interface CreatePrintingPayload {
+  entryDate: string;
+  bundleId: string;
+  poId: string;
+  karigarId: string;
+  piecesReturned: number;
+  piecesRejected?: number;
+}
+
+export interface ColoringEntry {
+  id: string;
+  entryNumber: string;
+  entryDate: string;
+  bundleId: string;
+  poId: string;
+  karigarId: string;
+  colorApplied: string;
+  piecesReceived: number;
+  piecesReturned: number;
+  piecesRejected: number;
+  karigar?: ProductionPartyRef;
+  po?: IssueRecordPO;
+  bundle?: ProductionBundleRef;
+}
+
+export interface ColoringListSummary {
+  totalPiecesReturned: number;
+  totalPiecesRejected: number;
+  totalKarigarPaymentDue: number;
+}
+
+export interface CreateColoringPayload {
+  entryDate: string;
+  bundleId: string;
+  poId: string;
+  karigarId: string;
+  colorApplied: string;
+  piecesReturned: number;
+  piecesRejected?: number;
+}
+
+export interface StitchingEntry {
+  id: string;
+  entryNumber: string;
+  entryDate: string;
+  bundleId: string;
+  poId: string;
+  karigarId: string;
+  operationId: string;
+  piecesGiven: number;
+  piecesReturned: number;
+  piecesRejected: number;
+  karigar?: ProductionPartyRef;
+  po?: IssueRecordPO;
+  bundle?: ProductionBundleRef;
+  operation?: Pick<Operation, "id" | "name" | "stage" | "ratePerPiece">;
+}
+
+export interface StitchingListSummary {
+  totalPiecesReturned: number;
+  totalKarigarPaymentDue: number;
+}
+
+export interface CreateStitchingPayload {
+  entryDate: string;
+  bundleId: string;
+  poId: string;
+  karigarId: string;
+  operationId: string;
+  piecesGiven: number;
+  piecesReturned: number;
+  piecesRejected?: number;
+}
+
+export interface FinishingEntry {
+  id: string;
+  entryNumber: string;
+  entryDate: string;
+  bundleId: string;
+  poId: string;
+  karigarId: string;
+  operationId: string;
+  piecesReceived: number;
+  piecesCompleted: number;
+  karigar?: ProductionPartyRef;
+  po?: IssueRecordPO;
+  bundle?: ProductionBundleRef;
+  operation?: Pick<Operation, "id" | "name" | "stage" | "ratePerPiece">;
+}
+
+export interface FinishingListSummary {
+  totalPiecesCompleted: number;
+  totalKarigarPaymentDue: number;
+}
+
+export interface CreateFinishingPayload {
+  entryDate: string;
+  bundleId: string;
+  poId: string;
+  karigarId: string;
+  operationId: string;
+  piecesReceived: number;
+  piecesCompleted: number;
+}
+
+export interface ProductionCreateResult<T> {
+  entry: T;
+  payment?: {
+    id: string;
+    amountDue: number;
+    ratePerPiece?: number;
+  };
+  paymentAmount?: number;
+}
+
+export interface BundleSummary {
+  bundleNumber: string;
+  poNumber: string;
+  designNumber: string | null;
+  garmentType: string | null;
+  fabricIssuedKg: number;
+  currentStage: BundleStage;
+  status: BundleStatus;
+}
+
+export interface BundleJourneyStageDetail {
+  completed?: boolean;
+  entryDate?: string;
+  karigar?: ProductionPartyRef;
+  totalPiecesCut?: number;
+  wastageKg?: number;
+  piecesReceived?: number;
+  piecesReturned?: number;
+  piecesRejected?: number;
+  colorApplied?: string;
+  boxNumber?: string | null;
+  entries?: Array<{
+    operation?: Pick<Operation, "id" | "name" | "stage">;
+    piecesGiven?: number;
+    piecesReturned?: number;
+    piecesCompleted?: number;
+    karigar?: ProductionPartyRef;
+  }>;
+}
+
+export interface BundleJourney {
+  bundleNumber: string;
+  stages: {
+    cutting: BundleJourneyStageDetail | null;
+    printing: BundleJourneyStageDetail | null;
+    coloring: BundleJourneyStageDetail | null;
+    stitching: BundleJourneyStageDetail | null;
+    finishing: BundleJourneyStageDetail | null;
+    boxing: BundleJourneyStageDetail | null;
+  };
+}
+
+export interface BundlePaymentRow {
+  karigar: ProductionPartyRef;
+  operation: string;
+  stage: OperationStage | string;
+  piecesCompleted: number;
+  ratePerPiece: number;
+  amountDue: number;
+  status: PaymentStatus;
+  paidAt: string | null;
+}
+
+export interface BundlePaymentsResponse {
+  data: BundlePaymentRow[];
+  totalPaymentForBundle: number;
+}
+
+export type ProductionListResponse<T, S> = PaginatedResponseLike<T> & {
+  summary: S;
+};
+
+export interface PaginatedResponseLike<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 export interface SalesBillItem {

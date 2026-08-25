@@ -2,7 +2,7 @@
 
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
-import type { MockColoringEntry } from "@/mock/production";
+import type { ColoringEntry } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
   Table,
@@ -13,10 +13,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/routes";
-import { cn } from "@/lib/utils";
 
 interface ColoringTableProps {
-  entries: MockColoringEntry[];
+  entries: ColoringEntry[];
   onAdd?: () => void;
 }
 
@@ -40,86 +39,48 @@ export function ColoringTable({ entries, onAdd }: ColoringTableProps) {
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Entry No
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Date
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                PO
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Design
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Bundle
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Pieces Received
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Color Applied
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Pieces Returned
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Rejected
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Karigar
-              </TableHead>
+              <TableHead>Entry No</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>PO</TableHead>
+              <TableHead>Bundle</TableHead>
+              <TableHead>Color</TableHead>
+              <TableHead>Returned</TableHead>
+              <TableHead>Rejected</TableHead>
+              <TableHead>Karigar</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {entries.map((entry) => (
-              <TableRow
-                key={entry.id}
-                className="cursor-pointer"
-                onClick={() =>
-                  router.push(ROUTES.PRODUCTION.BUNDLE_DETAIL(entry.bundleNumber))
-                }
-              >
-                <TableCell className="font-semibold text-slate-900">
-                  {entry.entryNumber}
-                </TableCell>
-                <TableCell>
-                  {format(new Date(entry.entryDate), "dd MMM yyyy")}
-                </TableCell>
-                <TableCell>{entry.poNumber}</TableCell>
-                <TableCell>{entry.designNumber}</TableCell>
-                <TableCell>{entry.bundleNumber}</TableCell>
-                <TableCell>
-                  {entry.piecesReceived.toLocaleString("en-IN")} pcs
-                </TableCell>
-                <TableCell>
-                  <span className="inline-flex items-center gap-2">
-                    <span
-                      className={cn(
-                        "size-3 rounded-full border border-slate-300",
-                        entry.colorHex === "#ffffff" && "bg-white"
-                      )}
-                      style={
-                        entry.colorHex !== "#ffffff"
-                          ? { backgroundColor: entry.colorHex }
-                          : undefined
-                      }
-                    />
-                    {entry.colorApplied}
-                  </span>
-                </TableCell>
-                <TableCell className="bg-amber-50/70 font-medium text-amber-800">
-                  {entry.piecesReturned.toLocaleString("en-IN")} pcs
-                </TableCell>
-                <TableCell>
-                  <span className="inline-flex rounded-md bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">
-                    {entry.piecesRejected.toLocaleString("en-IN")} pcs
-                  </span>
-                </TableCell>
-                <TableCell>{entry.karigarName}</TableCell>
-              </TableRow>
-            ))}
+            {entries.map((entry) => {
+              const bundleNumber = entry.bundle?.bundleNumber;
+              return (
+                <TableRow
+                  key={entry.id}
+                  className={bundleNumber ? "cursor-pointer" : undefined}
+                  onClick={() => {
+                    if (bundleNumber) {
+                      router.push(ROUTES.PRODUCTION.BUNDLE_DETAIL(bundleNumber));
+                    }
+                  }}
+                >
+                  <TableCell className="font-semibold">
+                    {entry.entryNumber}
+                  </TableCell>
+                  <TableCell>
+                    {format(new Date(entry.entryDate), "dd MMM yyyy")}
+                  </TableCell>
+                  <TableCell>{entry.po?.poNumber ?? entry.poId}</TableCell>
+                  <TableCell>{bundleNumber ?? "—"}</TableCell>
+                  <TableCell>{entry.colorApplied}</TableCell>
+                  <TableCell className="font-semibold">
+                    {Number(entry.piecesReturned).toLocaleString("en-IN")}
+                  </TableCell>
+                  <TableCell className="font-semibold text-red-600">
+                    {Number(entry.piecesRejected).toLocaleString("en-IN")}
+                  </TableCell>
+                  <TableCell>{entry.karigar?.name ?? "—"}</TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

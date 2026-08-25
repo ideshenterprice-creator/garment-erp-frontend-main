@@ -1,8 +1,9 @@
 "use client";
 
+import { format } from "date-fns";
 import { SlidersHorizontal } from "lucide-react";
-import type { MockStockItem } from "@/mock/inventory";
-import { getUnitLabel } from "@/mock/inventory";
+import type { Stock } from "@/types";
+import { getUnitLabel } from "@/lib/inventory";
 import { EmptyState } from "@/components/common/EmptyState";
 import { StockCategoryBadge } from "@/components/modules/inventory/StockCategoryBadge";
 import { StockStatusIndicator } from "@/components/modules/inventory/StockStatusIndicator";
@@ -18,20 +19,21 @@ import {
 import { cn } from "@/lib/utils";
 
 interface StockTableProps {
-  items: MockStockItem[];
-  onAdjust: (item: MockStockItem) => void;
-  onAdd?: () => void;
+  items: Stock[];
+  onAdjust: (item: Stock) => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
-export function StockTable({ items, onAdjust, onAdd }: StockTableProps) {
+export function StockTable({
+  items,
+  onAdjust,
+  emptyTitle = "No stock items found",
+  emptyDescription = "Try changing filters or confirm a purchase bill to add stock.",
+}: StockTableProps) {
   if (items.length === 0) {
     return (
-      <EmptyState
-        title="No stock items found"
-        description="Try changing filters or add a new stock entry."
-        actionLabel="Add Entry"
-        onAction={onAdd}
-      />
+      <EmptyState title={emptyTitle} description={emptyDescription} />
     );
   }
 
@@ -64,7 +66,9 @@ export function StockTable({ items, onAdjust, onAdd }: StockTableProps) {
           </TableHeader>
           <TableBody>
             {items.map((item) => {
-              const isZero = item.quantity === 0;
+              const isZero =
+                item.stockStatus === "OUT_OF_STOCK" ||
+                Number(item.quantity) === 0;
               return (
                 <TableRow
                   key={item.id}
@@ -96,13 +100,15 @@ export function StockTable({ items, onAdjust, onAdd }: StockTableProps) {
                       isZero ? "text-red-600" : "text-slate-900"
                     )}
                   >
-                    {item.quantity.toLocaleString("en-IN")}
+                    {Number(item.quantity).toLocaleString("en-IN")}
                   </TableCell>
                   <TableCell className="text-slate-600">
                     {getUnitLabel(item.product.unit)}
                   </TableCell>
                   <TableCell className="text-slate-600">
-                    {item.lastUpdatedLabel}
+                    {item.lastUpdated
+                      ? format(new Date(item.lastUpdated), "dd MMM yyyy")
+                      : "—"}
                   </TableCell>
                   <TableCell>
                     <Button

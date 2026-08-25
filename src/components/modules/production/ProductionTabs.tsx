@@ -1,6 +1,6 @@
 "use client";
 
-import type { ProductionStageTab } from "@/mock/production";
+import type { ProductionStageTab } from "@/types";
 import {
   CheckCircle2,
   Palette,

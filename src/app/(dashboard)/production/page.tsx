@@ -1,22 +1,9 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { PlusCircle } from "lucide-react";
-import {
-  filterByProductionFilters,
-  mockColoringEntries,
-  mockCuttingEntries,
-  mockFinishingEntries,
-  mockPrintingEntries,
-  mockStitchingEntries,
-  type MockColoringEntry,
-  type MockCuttingEntry,
-  type MockFinishingEntry,
-  type MockPrintingEntry,
-  type MockStitchingEntry,
-  type ProductionFilters,
-  type ProductionStageTab,
-} from "@/mock/production";
+import type { ProductionFilters, ProductionStageTab } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
@@ -33,14 +20,25 @@ import { RecordFinishingDrawer } from "@/components/modules/production/RecordFin
 import { RecordPrintingDrawer } from "@/components/modules/production/RecordPrintingDrawer";
 import { RecordStitchingDrawer } from "@/components/modules/production/RecordStitchingDrawer";
 import { StitchingTable } from "@/components/modules/production/StitchingTable";
+import { Button } from "@/components/ui/button";
+import { QUERY_KEYS } from "@/constants/queryKeys";
 import { formatCurrency } from "@/lib/utils";
+import { getParties } from "@/services/masters.service";
+import {
+  getColoringEntries,
+  getCuttingEntries,
+  getFinishingEntries,
+  getPrintingEntries,
+  getStitchingEntries,
+} from "@/services/production.service";
+import { getPurchaseOrders } from "@/services/purchaseOrders.service";
 
 const PAGE_SIZE = 10;
 
 const defaultFilters: ProductionFilters = {
   poId: "ALL",
-  dateFrom: "",
-  dateTo: "",
+  from: "",
+  to: "",
   karigarId: "ALL",
 };
 
@@ -53,220 +51,204 @@ const recordLabels: Record<ProductionStageTab, string> = {
 };
 
 export default function ProductionPage() {
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ProductionStageTab>("CUTTING");
-  const [filters, setFilters] = useState<ProductionFilters>(defaultFilters);
-  const [applied, setApplied] = useState<ProductionFilters>(defaultFilters);
+  const [draftFilters, setDraftFilters] =
+    useState<ProductionFilters>(defaultFilters);
+  const [appliedFilters, setAppliedFilters] =
+    useState<ProductionFilters>(defaultFilters);
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const [cutting, setCutting] = useState<MockCuttingEntry[]>(mockCuttingEntries);
-  const [printing, setPrinting] =
-    useState<MockPrintingEntry[]>(mockPrintingEntries);
-  const [coloring, setColoring] =
-    useState<MockColoringEntry[]>(mockColoringEntries);
-  const [stitching, setStitching] =
-    useState<MockStitchingEntry[]>(mockStitchingEntries);
-  const [finishing, setFinishing] =
-    useState<MockFinishingEntry[]>(mockFinishingEntries);
+  const posQuery = useQuery({
+    queryKey: [
+      ...QUERY_KEYS.PURCHASE_ORDERS,
+      { status: "IN_PRODUCTION", limit: 100 },
+    ],
+    queryFn: () => getPurchaseOrders({ status: "IN_PRODUCTION", limit: 100 }),
+  });
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
+  const activePosQuery = useQuery({
+    queryKey: [
+      ...QUERY_KEYS.PURCHASE_ORDERS,
+      { status: "ACTIVE", limit: 100 },
+    ],
+    queryFn: () => getPurchaseOrders({ status: "ACTIVE", limit: 100 }),
+  });
 
-  const filteredCutting = useMemo(
-    () => filterByProductionFilters(cutting, applied),
-    [cutting, applied]
-  );
-  const filteredPrinting = useMemo(
-    () => filterByProductionFilters(printing, applied),
-    [printing, applied]
-  );
-  const filteredColoring = useMemo(
-    () => filterByProductionFilters(coloring, applied),
-    [coloring, applied]
-  );
-  const filteredStitching = useMemo(
-    () => filterByProductionFilters(stitching, applied),
-    [stitching, applied]
-  );
-  const filteredFinishing = useMemo(
-    () => filterByProductionFilters(finishing, applied),
-    [finishing, applied]
-  );
+  const karigarsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PARTIES, { type: "KARIGAR", limit: 100 }],
+    queryFn: () => getParties({ type: "KARIGAR", limit: 100 }),
+  });
+
+  const drawerPOs = useMemo(() => {
+    const inProd = posQuery.data?.data.data ?? [];
+    const active = activePosQuery.data?.data.data ?? [];
+    const byId = new Map([...inProd, ...active].map((po) => [po.id, po]));
+    return Array.from(byId.values());
+  }, [posQuery.data, activePosQuery.data]);
+
+  const filterPOs = posQuery.data?.data.data ?? [];
+  const karigars = karigarsQuery.data?.data.data ?? [];
+
+  const apiFilters = {
+    poId:
+      appliedFilters.poId === "ALL" ? undefined : appliedFilters.poId,
+    karigarId:
+      appliedFilters.karigarId === "ALL"
+        ? undefined
+        : appliedFilters.karigarId,
+    from: appliedFilters.from || undefined,
+    to: appliedFilters.to || undefined,
+    page,
+    limit: PAGE_SIZE,
+  };
+
+  const cuttingQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PRODUCTION, "cutting", apiFilters],
+    queryFn: () => getCuttingEntries(apiFilters),
+    enabled: activeTab === "CUTTING",
+  });
+
+  const printingQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PRODUCTION, "printing", apiFilters],
+    queryFn: () => getPrintingEntries(apiFilters),
+    enabled: activeTab === "PRINTING",
+  });
+
+  const coloringQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PRODUCTION, "coloring", apiFilters],
+    queryFn: () => getColoringEntries(apiFilters),
+    enabled: activeTab === "COLORING",
+  });
+
+  const stitchingQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PRODUCTION, "stitching", apiFilters],
+    queryFn: () => getStitchingEntries(apiFilters),
+    enabled: activeTab === "STITCHING",
+  });
+
+  const finishingQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PRODUCTION, "finishing", apiFilters],
+    queryFn: () => getFinishingEntries(apiFilters),
+    enabled: activeTab === "FINISHING",
+  });
+
+  const activeQuery =
+    activeTab === "CUTTING"
+      ? cuttingQuery
+      : activeTab === "PRINTING"
+        ? printingQuery
+        : activeTab === "COLORING"
+          ? coloringQuery
+          : activeTab === "STITCHING"
+            ? stitchingQuery
+            : finishingQuery;
+
+  const total = activeQuery.data?.data.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const summaryStats = useMemo(() => {
     if (activeTab === "CUTTING") {
-      const pieces = filteredCutting.reduce((sum, row) => sum + row.pieces, 0);
-      const wastage = filteredCutting.reduce(
-        (sum, row) => sum + row.wastageKg,
-        0
-      );
-      const payment = filteredCutting.reduce(
-        (sum, row) => sum + row.amountDue,
-        0
-      );
+      const summary = cuttingQuery.data?.data.summary;
       return [
-        { label: "Total Pieces Cut", value: pieces.toLocaleString("en-IN") },
+        {
+          label: "Total Pieces Cut",
+          value: Number(summary?.totalPiecesCut ?? 0).toLocaleString("en-IN"),
+        },
         {
           label: "Total Wastage (kg)",
-          value: wastage.toFixed(1),
+          value: Number(summary?.totalWastageKg ?? 0).toLocaleString("en-IN"),
           tone: "warning" as const,
         },
         {
           label: "Total Karigar Payment Due",
-          value: formatCurrency(payment),
+          value: formatCurrency(Number(summary?.totalKarigarPaymentDue ?? 0)),
           tone: "accent" as const,
         },
       ];
     }
-
     if (activeTab === "PRINTING") {
-      const printed = filteredPrinting.reduce(
-        (sum, row) => sum + row.piecesReturned,
-        0
-      );
-      const rejected = filteredPrinting.reduce(
-        (sum, row) => sum + row.piecesRejected,
-        0
-      );
-      const payment = filteredPrinting.reduce(
-        (sum, row) => sum + row.amountDue,
-        0
-      );
+      const summary = printingQuery.data?.data.summary;
       return [
         {
           label: "Total Pieces Printed",
-          value: printed.toLocaleString("en-IN"),
+          value: Number(summary?.totalPiecesReturned ?? 0).toLocaleString(
+            "en-IN"
+          ),
         },
         {
           label: "Total Rejected",
-          value: rejected.toLocaleString("en-IN"),
+          value: Number(summary?.totalPiecesRejected ?? 0).toLocaleString(
+            "en-IN"
+          ),
           tone: "warning" as const,
         },
         {
           label: "Total Karigar Payment Due",
-          value: formatCurrency(payment),
+          value: formatCurrency(Number(summary?.totalKarigarPaymentDue ?? 0)),
           tone: "accent" as const,
         },
       ];
     }
-
     if (activeTab === "COLORING") {
-      const colored = filteredColoring.reduce(
-        (sum, row) => sum + row.piecesReturned,
-        0
-      );
-      const rejected = filteredColoring.reduce(
-        (sum, row) => sum + row.piecesRejected,
-        0
-      );
-      const payment = filteredColoring.reduce(
-        (sum, row) => sum + row.amountDue,
-        0
-      );
+      const summary = coloringQuery.data?.data.summary;
       return [
         {
           label: "Total Pieces Colored",
-          value: colored.toLocaleString("en-IN"),
+          value: Number(summary?.totalPiecesReturned ?? 0).toLocaleString(
+            "en-IN"
+          ),
         },
         {
           label: "Total Rejected",
-          value: rejected.toLocaleString("en-IN"),
+          value: Number(summary?.totalPiecesRejected ?? 0).toLocaleString(
+            "en-IN"
+          ),
           tone: "warning" as const,
         },
         {
           label: "Total Karigar Payment Due",
-          value: formatCurrency(payment),
+          value: formatCurrency(Number(summary?.totalKarigarPaymentDue ?? 0)),
           tone: "accent" as const,
         },
       ];
     }
-
     if (activeTab === "STITCHING") {
-      const processed = filteredStitching.reduce(
-        (sum, row) => sum + row.piecesReturned,
-        0
-      );
-      const rejected = filteredStitching.reduce(
-        (sum, row) => sum + row.piecesRejected,
-        0
-      );
-      const payment = filteredStitching.reduce(
-        (sum, row) => sum + row.amountDue,
-        0
-      );
+      const summary = stitchingQuery.data?.data.summary;
       return [
         {
           label: "Total Pieces Processed",
-          value: processed.toLocaleString("en-IN"),
-        },
-        {
-          label: "Total Rejected",
-          value: rejected.toLocaleString("en-IN"),
-          tone: "warning" as const,
+          value: Number(summary?.totalPiecesReturned ?? 0).toLocaleString(
+            "en-IN"
+          ),
         },
         {
           label: "Total Payment Due",
-          value: formatCurrency(payment),
+          value: formatCurrency(Number(summary?.totalKarigarPaymentDue ?? 0)),
           tone: "accent" as const,
         },
       ];
     }
-
-    const finished = filteredFinishing.reduce(
-      (sum, row) => sum + row.piecesCompleted,
-      0
-    );
-    const payment = filteredFinishing.reduce(
-      (sum, row) => sum + row.amountDue,
-      0
-    );
+    const summary = finishingQuery.data?.data.summary;
     return [
       {
         label: "Total Pieces Finished",
-        value: `${finished.toLocaleString("en-IN")} pcs`,
+        value: `${Number(summary?.totalPiecesCompleted ?? 0).toLocaleString("en-IN")} pcs`,
       },
       {
         label: "Total Karigar Payment Due",
-        value: formatCurrency(payment),
+        value: formatCurrency(Number(summary?.totalKarigarPaymentDue ?? 0)),
         tone: "accent" as const,
       },
     ];
   }, [
     activeTab,
-    filteredCutting,
-    filteredPrinting,
-    filteredColoring,
-    filteredStitching,
-    filteredFinishing,
+    cuttingQuery.data,
+    printingQuery.data,
+    coloringQuery.data,
+    stitchingQuery.data,
+    finishingQuery.data,
   ]);
-
-  const activeRows =
-    activeTab === "CUTTING"
-      ? filteredCutting
-      : activeTab === "PRINTING"
-        ? filteredPrinting
-        : activeTab === "COLORING"
-          ? filteredColoring
-          : activeTab === "STITCHING"
-            ? filteredStitching
-            : filteredFinishing;
-
-  const totalPages = Math.max(1, Math.ceil(activeRows.length / PAGE_SIZE));
-  const pageStart = (page - 1) * PAGE_SIZE;
-  const pageCutting = filteredCutting.slice(pageStart, pageStart + PAGE_SIZE);
-  const pagePrinting = filteredPrinting.slice(pageStart, pageStart + PAGE_SIZE);
-  const pageColoring = filteredColoring.slice(pageStart, pageStart + PAGE_SIZE);
-  const pageStitching = filteredStitching.slice(
-    pageStart,
-    pageStart + PAGE_SIZE
-  );
-  const pageFinishing = filteredFinishing.slice(
-    pageStart,
-    pageStart + PAGE_SIZE
-  );
 
   return (
     <div>
@@ -287,49 +269,67 @@ export default function ProductionPage() {
         onChange={(tab) => {
           setActiveTab(tab);
           setPage(1);
+          setDrawerOpen(false);
         }}
       />
 
       <ProductionFilterBar
-        filters={filters}
-        onChange={setFilters}
+        filters={draftFilters}
+        onChange={setDraftFilters}
         onApply={() => {
-          setApplied(filters);
+          setAppliedFilters(draftFilters);
           setPage(1);
         }}
+        purchaseOrders={filterPOs}
+        karigars={karigars}
+        posLoading={posQuery.isLoading}
+        karigarsLoading={karigarsQuery.isLoading}
       />
 
-      {loading ? (
+      {activeQuery.isLoading ? (
         <TableSkeleton rows={8} />
+      ) : activeQuery.isError ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
+          <p className="text-sm font-medium text-slate-900">
+            Could not load production entries
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void activeQuery.refetch()}
+          >
+            Try Again
+          </Button>
+        </div>
       ) : (
         <>
           {activeTab === "CUTTING" ? (
             <CuttingTable
-              entries={pageCutting}
+              entries={cuttingQuery.data?.data.data ?? []}
               onAdd={() => setDrawerOpen(true)}
             />
           ) : null}
           {activeTab === "PRINTING" ? (
             <PrintingTable
-              entries={pagePrinting}
+              entries={printingQuery.data?.data.data ?? []}
               onAdd={() => setDrawerOpen(true)}
             />
           ) : null}
           {activeTab === "COLORING" ? (
             <ColoringTable
-              entries={pageColoring}
+              entries={coloringQuery.data?.data.data ?? []}
               onAdd={() => setDrawerOpen(true)}
             />
           ) : null}
           {activeTab === "STITCHING" ? (
             <StitchingTable
-              entries={pageStitching}
+              entries={stitchingQuery.data?.data.data ?? []}
               onAdd={() => setDrawerOpen(true)}
             />
           ) : null}
           {activeTab === "FINISHING" ? (
             <FinishingTable
-              entries={pageFinishing}
+              entries={finishingQuery.data?.data.data ?? []}
               onAdd={() => setDrawerOpen(true)}
             />
           ) : null}
@@ -337,7 +337,7 @@ export default function ProductionPage() {
           <Pagination
             page={page}
             totalPages={totalPages}
-            totalItems={activeRows.length}
+            totalItems={total}
             pageSize={PAGE_SIZE}
             onPageChange={setPage}
             label="entries"
@@ -350,27 +350,32 @@ export default function ProductionPage() {
       <RecordCuttingDrawer
         open={drawerOpen && activeTab === "CUTTING"}
         onClose={() => setDrawerOpen(false)}
-        onSave={(entry) => setCutting((prev) => [entry, ...prev])}
+        purchaseOrders={drawerPOs}
+        karigars={karigars}
       />
       <RecordPrintingDrawer
         open={drawerOpen && activeTab === "PRINTING"}
         onClose={() => setDrawerOpen(false)}
-        onSave={(entry) => setPrinting((prev) => [entry, ...prev])}
+        purchaseOrders={drawerPOs}
+        karigars={karigars}
       />
       <RecordColoringDrawer
         open={drawerOpen && activeTab === "COLORING"}
         onClose={() => setDrawerOpen(false)}
-        onSave={(entry) => setColoring((prev) => [entry, ...prev])}
+        purchaseOrders={drawerPOs}
+        karigars={karigars}
       />
       <RecordStitchingDrawer
         open={drawerOpen && activeTab === "STITCHING"}
         onClose={() => setDrawerOpen(false)}
-        onSave={(entry) => setStitching((prev) => [entry, ...prev])}
+        purchaseOrders={drawerPOs}
+        karigars={karigars}
       />
       <RecordFinishingDrawer
         open={drawerOpen && activeTab === "FINISHING"}
         onClose={() => setDrawerOpen(false)}
-        onSave={(entry) => setFinishing((prev) => [entry, ...prev])}
+        purchaseOrders={drawerPOs}
+        karigars={karigars}
       />
     </div>
   );

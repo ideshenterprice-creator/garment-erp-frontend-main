@@ -1,14 +1,6 @@
-import type { SizeBreakdown } from "@/mock/production";
+import type { SizeBreakdown } from "@/types";
+import { SIZE_FIELD_KEYS, SIZE_FIELD_LABELS } from "@/lib/production";
 import { cn } from "@/lib/utils";
-
-const chipLabels: { key: keyof SizeBreakdown; label: string }[] = [
-  { key: "qty_0_3M", label: "0-3M" },
-  { key: "qty_3_6M", label: "3-6M" },
-  { key: "qty_6_9M", label: "6-9M" },
-  { key: "qty_9_12M", label: "9-12M" },
-  { key: "qty_12_18M", label: "12-18M" },
-  { key: "qty_18_24M", label: "18-24M" },
-];
 
 interface SizeBreakdownChipsProps {
   sizes: SizeBreakdown;
@@ -19,7 +11,7 @@ export function SizeBreakdownChips({
   sizes,
   className,
 }: SizeBreakdownChipsProps) {
-  const chips = chipLabels.filter((item) => sizes[item.key] > 0);
+  const chips = SIZE_FIELD_KEYS.filter((key) => Number(sizes[key]) > 0);
 
   if (chips.length === 0) {
     return <span className="text-muted-foreground">—</span>;
@@ -27,12 +19,12 @@ export function SizeBreakdownChips({
 
   return (
     <div className={cn("flex flex-wrap gap-1", className)}>
-      {chips.map((chip) => (
+      {chips.map((key) => (
         <span
-          key={chip.key}
+          key={key}
           className="inline-flex rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600"
         >
-          {chip.label}:{sizes[chip.key]}
+          {SIZE_FIELD_LABELS[key]}:{Number(sizes[key]).toLocaleString("en-IN")}
         </span>
       ))}
     </div>

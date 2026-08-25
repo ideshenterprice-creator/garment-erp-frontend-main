@@ -1,8 +1,11 @@
-import type { BundlePaymentRow } from "@/mock/production";
+"use client";
+
+import type { BundlePaymentRow } from "@/types";
 import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -11,69 +14,75 @@ import { cn, formatCurrency } from "@/lib/utils";
 
 interface BundlePaymentsTableProps {
   payments: BundlePaymentRow[];
+  totalPayment: number;
 }
 
-export function BundlePaymentsTable({ payments }: BundlePaymentsTableProps) {
-  const total = payments.reduce((sum, row) => sum + row.amount, 0);
+export function BundlePaymentsTable({
+  payments,
+  totalPayment,
+}: BundlePaymentsTableProps) {
+  if (payments.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No karigar payments linked to this bundle yet.
+      </p>
+    );
+  }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200">
+    <div className="overflow-x-auto">
       <Table>
         <TableHeader>
-          <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
-            <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Karigar
-            </TableHead>
-            <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Operation
-            </TableHead>
-            <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Pieces
-            </TableHead>
-            <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Rate
-            </TableHead>
-            <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Amount
-            </TableHead>
-            <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Status
-            </TableHead>
+          <TableRow>
+            <TableHead>Karigar</TableHead>
+            <TableHead>Operation</TableHead>
+            <TableHead>Stage</TableHead>
+            <TableHead>Pieces</TableHead>
+            <TableHead>Rate</TableHead>
+            <TableHead>Amount</TableHead>
+            <TableHead>Status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {payments.map((row) => (
-            <TableRow key={row.id}>
-              <TableCell>{row.karigarName}</TableCell>
-              <TableCell>{row.operationName}</TableCell>
-              <TableCell>{row.pieces.toLocaleString("en-IN")}</TableCell>
-              <TableCell>₹{row.ratePerPiece.toFixed(2)}</TableCell>
-              <TableCell className="font-medium">
-                {formatCurrency(row.amount)}
+          {payments.map((payment, index) => (
+            <TableRow key={`${payment.operation}-${index}`}>
+              <TableCell>{payment.karigar.name}</TableCell>
+              <TableCell>{payment.operation}</TableCell>
+              <TableCell>{String(payment.stage)}</TableCell>
+              <TableCell>
+                {Number(payment.piecesCompleted).toLocaleString("en-IN")}
+              </TableCell>
+              <TableCell>
+                ₹{Number(payment.ratePerPiece).toLocaleString("en-IN")}
+              </TableCell>
+              <TableCell className="font-semibold">
+                {formatCurrency(Number(payment.amountDue))}
               </TableCell>
               <TableCell>
                 <span
                   className={cn(
-                    "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase",
-                    row.status === "PAID"
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-amber-50 text-amber-800"
+                    "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
+                    payment.status === "PAID"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-amber-100 text-amber-700"
                   )}
                 >
-                  {row.status}
+                  {payment.status}
                 </span>
               </TableCell>
             </TableRow>
           ))}
-          <TableRow className="bg-slate-50 hover:bg-slate-50">
-            <TableCell colSpan={4} className="font-bold text-slate-900">
-              Total Payment for this Bundle
+        </TableBody>
+        <TableFooter>
+          <TableRow className="bg-slate-50">
+            <TableCell colSpan={5} className="font-bold">
+              Total Payment
             </TableCell>
-            <TableCell colSpan={2} className="font-bold text-slate-900">
-              {formatCurrency(total)}
+            <TableCell className="font-bold" colSpan={2}>
+              {formatCurrency(totalPayment)}
             </TableCell>
           </TableRow>
-        </TableBody>
+        </TableFooter>
       </Table>
     </div>
   );

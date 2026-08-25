@@ -1,6 +1,14 @@
 import api from "@/lib/axios";
 import type { ApiResponse, PaginatedResponse } from "@/types/api";
-import type { IssueRecord, Stock } from "@/types";
+import type {
+  AdjustStockPayload,
+  CreateIssuePayload,
+  CreateWastagePayload,
+  CuttingWastage,
+  IssueRecord,
+  Stock,
+  WastageListResponse,
+} from "@/types";
 import type { ListParams } from "@/services/masters.service";
 
 export async function getStock(
@@ -24,7 +32,7 @@ export async function getStockByProduct(
 
 export async function adjustStock(
   productId: string,
-  data: { quantity: number; reason?: string; notes?: string }
+  data: AdjustStockPayload
 ): Promise<ApiResponse<Stock>> {
   const response = await api.post<ApiResponse<Stock>>(
     `/inventory/stock/${productId}/adjust`,
@@ -36,14 +44,15 @@ export async function adjustStock(
 export async function getIssues(
   params?: ListParams
 ): Promise<ApiResponse<PaginatedResponse<IssueRecord>>> {
-  const response = await api.get<
-    ApiResponse<PaginatedResponse<IssueRecord>>
-  >("/inventory/issues", { params });
+  const response = await api.get<ApiResponse<PaginatedResponse<IssueRecord>>>(
+    "/inventory/issues",
+    { params }
+  );
   return response.data;
 }
 
 export async function createIssue(
-  data: Partial<IssueRecord>
+  data: CreateIssuePayload
 ): Promise<ApiResponse<IssueRecord>> {
   const response = await api.post<ApiResponse<IssueRecord>>(
     "/inventory/issues",
@@ -54,8 +63,8 @@ export async function createIssue(
 
 export async function getWastage(
   params?: ListParams
-): Promise<ApiResponse<PaginatedResponse<unknown>>> {
-  const response = await api.get<ApiResponse<PaginatedResponse<unknown>>>(
+): Promise<ApiResponse<WastageListResponse>> {
+  const response = await api.get<ApiResponse<WastageListResponse>>(
     "/inventory/wastage",
     { params }
   );
@@ -63,11 +72,20 @@ export async function getWastage(
 }
 
 export async function createWastage(
-  data: Record<string, unknown>
-): Promise<ApiResponse<unknown>> {
-  const response = await api.post<ApiResponse<unknown>>(
+  data: CreateWastagePayload
+): Promise<ApiResponse<CuttingWastage>> {
+  const response = await api.post<ApiResponse<CuttingWastage>>(
     "/inventory/wastage",
     data
+  );
+  return response.data;
+}
+
+export async function markWastageSold(
+  id: string
+): Promise<ApiResponse<CuttingWastage>> {
+  const response = await api.patch<ApiResponse<CuttingWastage>>(
+    `/inventory/wastage/${id}/mark-sold`
   );
   return response.data;
 }

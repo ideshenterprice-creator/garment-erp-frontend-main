@@ -2,8 +2,9 @@
 
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
-import type { MockCuttingEntry } from "@/mock/production";
+import type { CuttingEntry } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { SizeBreakdownChips } from "@/components/modules/production/SizeBreakdownChips";
 import {
   Table,
   TableBody,
@@ -15,7 +16,7 @@ import {
 import { ROUTES } from "@/constants/routes";
 
 interface CuttingTableProps {
-  entries: MockCuttingEntry[];
+  entries: CuttingEntry[];
   onAdd?: () => void;
 }
 
@@ -39,63 +40,67 @@ export function CuttingTable({ entries, onAdd }: CuttingTableProps) {
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Entry No
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Date
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                PO
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Design
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Bundle
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Fabric (kg)
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Pieces
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Wastage (kg)
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Karigar
-              </TableHead>
+              <TableHead>Entry No</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>PO</TableHead>
+              <TableHead>Design</TableHead>
+              <TableHead>Bundle</TableHead>
+              <TableHead>Fabric (kg)</TableHead>
+              <TableHead>Pieces</TableHead>
+              <TableHead>Sizes</TableHead>
+              <TableHead>Wastage (kg)</TableHead>
+              <TableHead>Karigar</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {entries.map((entry) => (
-              <TableRow
-                key={entry.id}
-                className="cursor-pointer"
-                onClick={() =>
-                  router.push(ROUTES.PRODUCTION.BUNDLE_DETAIL(entry.bundleNumber))
-                }
-              >
-                <TableCell className="font-semibold text-slate-900">
-                  {entry.entryNumber}
-                </TableCell>
-                <TableCell>
-                  {format(new Date(entry.entryDate), "dd MMM yyyy")}
-                </TableCell>
-                <TableCell>{entry.poNumber}</TableCell>
-                <TableCell>{entry.designLabel}</TableCell>
-                <TableCell>{entry.bundleNumber}</TableCell>
-                <TableCell>{entry.fabricKg.toFixed(2)}</TableCell>
-                <TableCell className="font-semibold">
-                  {entry.pieces.toLocaleString("en-IN")}
-                </TableCell>
-                <TableCell className="font-semibold text-red-600">
-                  {entry.wastageKg.toFixed(1)}
-                </TableCell>
-                <TableCell>{entry.karigarName}</TableCell>
-              </TableRow>
-            ))}
+            {entries.map((entry) => {
+              const bundleNumber = entry.bundle?.bundleNumber;
+              return (
+                <TableRow
+                  key={entry.id}
+                  className={bundleNumber ? "cursor-pointer" : undefined}
+                  onClick={() => {
+                    if (bundleNumber) {
+                      router.push(ROUTES.PRODUCTION.BUNDLE_DETAIL(bundleNumber));
+                    }
+                  }}
+                >
+                  <TableCell className="font-semibold text-slate-900">
+                    {entry.entryNumber}
+                  </TableCell>
+                  <TableCell>
+                    {format(new Date(entry.entryDate), "dd MMM yyyy")}
+                  </TableCell>
+                  <TableCell>
+                    {entry.po?.poNumber ?? entry.poId}
+                  </TableCell>
+                  <TableCell>{entry.poItem?.designNumber ?? "—"}</TableCell>
+                  <TableCell>{bundleNumber ?? "—"}</TableCell>
+                  <TableCell>
+                    {Number(entry.fabricIssuedKg).toLocaleString("en-IN")}
+                  </TableCell>
+                  <TableCell className="font-semibold">
+                    {Number(entry.totalPiecesCut).toLocaleString("en-IN")}
+                  </TableCell>
+                  <TableCell>
+                    <SizeBreakdownChips
+                      sizes={{
+                        qty_0_3M: Number(entry.qty_0_3M),
+                        qty_3_6M: Number(entry.qty_3_6M),
+                        qty_6_9M: Number(entry.qty_6_9M),
+                        qty_9_12M: Number(entry.qty_9_12M),
+                        qty_12_18M: Number(entry.qty_12_18M),
+                        qty_18_24M: Number(entry.qty_18_24M),
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell className="font-semibold text-red-600">
+                    {Number(entry.wastageKg).toLocaleString("en-IN")}
+                  </TableCell>
+                  <TableCell>{entry.karigar?.name ?? "—"}</TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

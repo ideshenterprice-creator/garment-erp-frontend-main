@@ -1,46 +1,53 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
-import {
-  mockWastageEntries,
-  type MockWastageEntry,
-} from "@/mock/inventory";
+import { toast } from "sonner";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
 import { RecordWastageDrawer } from "@/components/modules/inventory/RecordWastageDrawer";
 import { WastageStatCards } from "@/components/modules/inventory/WastageStatCards";
 import { WastageTable } from "@/components/modules/inventory/WastageTable";
+import { Button } from "@/components/ui/button";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { getErrorMessage } from "@/lib/errorHandler";
+import {
+  getWastage,
+  markWastageSold,
+} from "@/services/inventory.service";
 
 const PAGE_SIZE = 10;
 
 export default function CuttingWastagePage() {
-  const [loading, setLoading] = useState(true);
-  const [entries, setEntries] = useState<MockWastageEntry[]>(mockWastageEntries);
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
+  const filters = { page, limit: PAGE_SIZE };
 
-  const stats = useMemo(() => {
-    const addedInStock = entries
-      .filter((entry) => !mockWastageEntries.some((base) => base.id === entry.id))
-      .filter((entry) => entry.status === "IN_STOCK")
-      .reduce((sum, entry) => sum + entry.wastageQty, 0);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: [...QUERY_KEYS.WASTAGE, filters],
+    queryFn: () => getWastage(filters),
+  });
 
-    return {
-      totalInStockKg: 172 + addedInStock,
-      totalSoldKg: 840,
-      totalValue: 24360 + addedInStock * 45,
-    };
-  }, [entries]);
+  const entries = data?.data.data ?? [];
+  const total = data?.data.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const summary = data?.data.summary;
 
-  const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
-  const pageItems = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const markSoldMutation = useMutation({
+    mutationFn: (id: string) => markWastageSold(id),
+    onSuccess: () => {
+      toast.success("Wastage marked as sold.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.WASTAGE });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STOCK });
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to mark wastage as sold."));
+    },
+  });
 
   return (
     <div>
@@ -57,9 +64,9 @@ export default function CuttingWastagePage() {
       />
 
       <WastageStatCards
-        totalInStockKg={stats.totalInStockKg}
-        totalSoldKg={stats.totalSoldKg}
-        totalValue={stats.totalValue}
+        totalInStockKg={summary?.totalWastageInStock ?? 0}
+        totalSoldKg={summary?.totalWastageSold ?? 0}
+        totalValue={summary?.totalWastageValue ?? 0}
       />
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -68,24 +75,43 @@ export default function CuttingWastagePage() {
         </div>
 
         <div className="p-0">
-          {loading ? (
+          {isLoading ? (
             <div className="p-4">
               <TableSkeleton rows={6} />
             </div>
+          ) : isError ? (
+            <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+              <p className="text-sm font-medium text-slate-900">
+                Could not load wastage records
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void refetch()}
+              >
+                Try Again
+              </Button>
+            </div>
           ) : (
             <WastageTable
-              entries={pageItems}
+              entries={entries}
               onAdd={() => setDrawerOpen(true)}
+              onMarkSold={(entry) => markSoldMutation.mutate(entry.id)}
+              markingSoldId={
+                markSoldMutation.isPending
+                  ? markSoldMutation.variables ?? null
+                  : null
+              }
             />
           )}
         </div>
 
-        {!loading ? (
+        {!isLoading && !isError ? (
           <div className="border-t border-slate-100 px-4 pb-4">
             <Pagination
               page={page}
               totalPages={totalPages}
-              totalItems={entries.length}
+              totalItems={total}
               pageSize={PAGE_SIZE}
               onPageChange={setPage}
               label="entries"
@@ -96,12 +122,7 @@ export default function CuttingWastagePage() {
 
       <RecordWastageDrawer
         open={drawerOpen}
-        existing={entries}
         onClose={() => setDrawerOpen(false)}
-        onSave={(entry) => {
-          setEntries((prev) => [entry, ...prev]);
-          setPage(1);
-        }}
       />
     </div>
   );

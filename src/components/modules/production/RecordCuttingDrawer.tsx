@@ -4,22 +4,14 @@ import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  emptySizeBreakdown,
-  getRateForStage,
-  mockProductionKarigars,
-  mockProductionPOs,
-  sumSizeBreakdown,
-  type MockCuttingEntry,
-  type SizeBreakdown,
-} from "@/mock/production";
+import type { CreateCuttingPayload, Party, PurchaseOrder } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { KarigarPaymentBox } from "@/components/modules/production/KarigarPaymentBox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -27,31 +19,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const sizeKeys = [
-  "qty_0_3M",
-  "qty_3_6M",
-  "qty_6_9M",
-  "qty_9_12M",
-  "qty_12_18M",
-  "qty_18_24M",
-] as const;
-
-const sizeLabels: Record<(typeof sizeKeys)[number], string> = {
-  qty_0_3M: "0-3M",
-  qty_3_6M: "3-6M",
-  qty_6_9M: "6-9M",
-  qty_9_12M: "9-12M",
-  qty_12_18M: "12-18M",
-  qty_18_24M: "18-24M",
-};
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { getErrorMessage } from "@/lib/errorHandler";
+import {
+  emptySizeBreakdown,
+  SIZE_FIELD_KEYS,
+  SIZE_FIELD_LABELS,
+  sumSizeBreakdown,
+  todayInputValue,
+  toIsoDate,
+} from "@/lib/production";
+import { formatCurrency } from "@/lib/utils";
+import { getIssues } from "@/services/inventory.service";
+import { getKarigars } from "@/services/masters.service";
+import { createCuttingEntry } from "@/services/production.service";
+import { getPurchaseOrderById } from "@/services/purchaseOrders.service";
 
 const cuttingSchema = z
   .object({
     entryDate: z.string().min(1, "Date is required"),
-    poId: z.string().min(1, "Linked PO is required"),
-    designNumber: z.string().min(1, "Design No is required"),
-    karigarId: z.string().min(1, "Karigar is required"),
+    poId: z.string().uuid("Linked PO is required"),
+    poItemId: z.string().uuid("Design is required"),
+    bundleId: z.string().uuid("Bundle is required"),
+    karigarId: z.string().uuid("Karigar is required"),
     wastageKg: z.number().min(0, "Wastage must be 0 or more"),
     qty_0_3M: z.number().min(0),
     qty_3_6M: z.number().min(0),
@@ -59,7 +49,6 @@ const cuttingSchema = z
     qty_9_12M: z.number().min(0),
     qty_12_18M: z.number().min(0),
     qty_18_24M: z.number().min(0),
-    notes: z.string().optional(),
   })
   .superRefine((values, ctx) => {
     const total =
@@ -83,15 +72,17 @@ type CuttingFormValues = z.infer<typeof cuttingSchema>;
 interface RecordCuttingDrawerProps {
   open: boolean;
   onClose: () => void;
-  onSave: (entry: MockCuttingEntry) => void;
+  purchaseOrders: PurchaseOrder[];
+  karigars: Party[];
 }
 
 export function RecordCuttingDrawer({
   open,
   onClose,
-  onSave,
+  purchaseOrders,
+  karigars,
 }: RecordCuttingDrawerProps) {
-  const rate = getRateForStage("CUTTING");
+  const queryClient = useQueryClient();
 
   const {
     register,
@@ -99,28 +90,25 @@ export function RecordCuttingDrawer({
     reset,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<CuttingFormValues>({
     resolver: zodResolver(cuttingSchema),
     defaultValues: {
-      entryDate: "2024-10-24",
+      entryDate: todayInputValue(),
       poId: "",
-      designNumber: "",
+      poItemId: "",
+      bundleId: "",
       karigarId: "",
-      wastageKg: 1.25,
+      wastageKg: 0,
       ...emptySizeBreakdown(),
-      qty_0_3M: 160,
-      qty_3_6M: 180,
-      qty_6_9M: 200,
-      qty_9_12M: 150,
-      qty_12_18M: 140,
-      qty_18_24M: 140,
-      notes: "",
     },
   });
 
   const poId = watch("poId");
-  const sizes: SizeBreakdown = {
+  const poItemId = watch("poItemId");
+  const bundleId = watch("bundleId");
+  const karigarId = watch("karigarId");
+  const sizes = {
     qty_0_3M: Number(watch("qty_0_3M") || 0),
     qty_3_6M: Number(watch("qty_3_6M") || 0),
     qty_6_9M: Number(watch("qty_6_9M") || 0),
@@ -129,129 +117,175 @@ export function RecordCuttingDrawer({
     qty_18_24M: Number(watch("qty_18_24M") || 0),
   };
   const totalPieces = sumSizeBreakdown(sizes);
+
+  const poDetailQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, poId],
+    queryFn: () => getPurchaseOrderById(poId),
+    enabled: open && Boolean(poId),
+  });
+
+  const issuesQuery = useQuery({
+    queryKey: [
+      ...QUERY_KEYS.ISSUES,
+      { poId, issueType: "CUTTING", limit: 100 },
+    ],
+    queryFn: () => getIssues({ poId, issueType: "CUTTING", limit: 100 }),
+    enabled: open && Boolean(poId),
+  });
+
+  const karigarProfilesQuery = useQuery({
+    queryKey: [...QUERY_KEYS.KARIGARS, { limit: 100 }],
+    queryFn: () => getKarigars({ limit: 100 }),
+    enabled: open,
+  });
+
+  const designs = poDetailQuery.data?.data.items ?? [];
+
+  const cuttingBundles = useMemo(() => {
+    const issues = issuesQuery.data?.data.data ?? [];
+    return issues.flatMap((issue) =>
+      (issue.bundles ?? [])
+        .filter((bundle) => bundle.currentStage === "CUTTING")
+        .filter(() => !poItemId || issue.poItemId === poItemId || !issue.poItemId)
+        .map((bundle) => ({
+          ...bundle,
+          issueKarigarId: issue.karigarId,
+          fabricIssued: Number(issue.quantityIssued),
+          designFromIssue: issue.poItemId,
+        }))
+    );
+  }, [issuesQuery.data, poItemId]);
+
+  const selectedBundle = cuttingBundles.find((b) => b.id === bundleId);
+  const fabricIssued = selectedBundle?.fabricIssued ?? 0;
+
+  const cuttingOp = useMemo(() => {
+    const profiles = karigarProfilesQuery.data?.data.data ?? [];
+    const profile = profiles.find((p) => p.partyId === karigarId);
+    return profile?.operations.find((op) => op.stage === "CUTTING");
+  }, [karigarProfilesQuery.data, karigarId]);
+
+  const rate = Number(cuttingOp?.ratePerPiece ?? 0);
   const amountDue = totalPieces * rate;
-
-  const designs = useMemo(() => {
-    return mockProductionPOs.find((po) => po.id === poId)?.designs ?? [];
-  }, [poId]);
-
-  const selectedPo = mockProductionPOs.find((po) => po.id === poId);
-  const selectedDesign = designs.find(
-    (design) => design.designNumber === watch("designNumber")
-  );
 
   useEffect(() => {
     if (!open) return;
     reset({
-      entryDate: "2024-10-24",
-      poId: mockProductionPOs[0]?.id ?? "",
-      designNumber: mockProductionPOs[0]?.designs[0]?.designNumber ?? "",
-      karigarId: "k-amit",
-      wastageKg: 1.25,
-      qty_0_3M: 160,
-      qty_3_6M: 180,
-      qty_6_9M: 200,
-      qty_9_12M: 150,
-      qty_12_18M: 140,
-      qty_18_24M: 140,
-      notes: "",
+      entryDate: todayInputValue(),
+      poId: "",
+      poItemId: "",
+      bundleId: "",
+      karigarId: "",
+      wastageKg: 0,
+      ...emptySizeBreakdown(),
     });
   }, [open, reset]);
 
   useEffect(() => {
-    if (designs.length === 0) {
-      setValue("designNumber", "");
-      return;
+    if (!selectedBundle) return;
+    setValue("karigarId", selectedBundle.issueKarigarId, {
+      shouldValidate: true,
+    });
+  }, [selectedBundle, setValue]);
+
+  useEffect(() => {
+    if (!poId) {
+      setValue("poItemId", "");
+      setValue("bundleId", "");
     }
-    const current = watch("designNumber");
-    if (!designs.some((design) => design.designNumber === current)) {
-      setValue("designNumber", designs[0].designNumber);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [designs, setValue]);
+  }, [poId, setValue]);
+
+  const createMutation = useMutation({
+    mutationFn: (data: CreateCuttingPayload) => createCuttingEntry(data),
+    onSuccess: (response) => {
+      const pay =
+        response.data.paymentAmount ??
+        Number(response.data.payment?.amountDue ?? amountDue);
+      toast.success(
+        `Cutting entry saved. Payment of ${formatCurrency(pay)} calculated.`
+      );
+      void queryClient.invalidateQueries({
+        queryKey: [...QUERY_KEYS.PRODUCTION, "cutting"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.KARIGAR_PAYMENTS,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.PURCHASE_ORDERS,
+      });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.BUNDLES });
+      onClose();
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to save cutting entry."));
+    },
+  });
 
   function onSubmit(values: CuttingFormValues) {
-    const po = mockProductionPOs.find((item) => item.id === values.poId);
-    const design = po?.designs.find(
-      (item) => item.designNumber === values.designNumber
-    );
-    const karigar = mockProductionKarigars.find(
-      (item) => item.id === values.karigarId
-    );
-    const nextSizes: SizeBreakdown = {
+    createMutation.mutate({
+      entryDate: toIsoDate(values.entryDate),
+      bundleId: values.bundleId,
+      poId: values.poId,
+      poItemId: values.poItemId,
+      karigarId: values.karigarId,
+      wastageKg: values.wastageKg,
       qty_0_3M: values.qty_0_3M,
       qty_3_6M: values.qty_3_6M,
       qty_6_9M: values.qty_6_9M,
       qty_9_12M: values.qty_9_12M,
       qty_12_18M: values.qty_12_18M,
       qty_18_24M: values.qty_18_24M,
-    };
-    const pieces = sumSizeBreakdown(nextSizes);
-
-    const entry: MockCuttingEntry = {
-      id: `ce-${Date.now()}`,
-      entryNumber: `CE-${String(Date.now()).slice(-4)}`,
-      entryDate: values.entryDate,
-      poId: values.poId,
-      poNumber: po?.poNumber ?? values.poId,
-      designNumber: values.designNumber,
-      designLabel: design?.garmentType ?? values.designNumber,
-      bundleNumber: `BND-${String(Date.now()).slice(-3)}`,
-      fabricKg: 45.5,
-      pieces,
-      sizes: nextSizes,
-      wastageKg: values.wastageKg,
-      karigarId: values.karigarId,
-      karigarName: karigar?.name ?? "Karigar",
-      ratePerPiece: rate,
-      amountDue: pieces * rate,
-    };
-
-    onSave(entry);
-    toast.success("Cutting entry saved successfully");
-    onClose();
+    });
   }
 
   return (
     <DrawerForm
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        if (!createMutation.isPending) onClose();
+      }}
       title="Record Cutting Entry"
-      description="Fill details for batch processing"
-      className="sm:max-w-lg"
+      description="Capture size-wise cutting output and wastage"
       footer={
-        <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={createMutation.isPending}
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
           <Button
             type="submit"
-            form="cutting-entry-form"
-            disabled={isSubmitting}
-            className="w-full bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
+            form="record-cutting-form"
+            disabled={createMutation.isPending}
+            className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
           >
-            Save Entry
-          </Button>
-          <Button type="button" variant="ghost" className="w-full" onClick={onClose}>
-            Cancel
+            {createMutation.isPending ? "Saving..." : "Save Entry"}
           </Button>
         </div>
       }
     >
       <form
-        id="cutting-entry-form"
+        id="record-cutting-form"
         onSubmit={handleSubmit(onSubmit)}
         className="flex flex-col gap-4"
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="entryDate">Date</Label>
-            <Input id="entryDate" type="date" {...register("entryDate")} />
+            <Label>Entry Date *</Label>
+            <Input type="date" {...register("entryDate")} />
             {errors.entryDate ? (
-              <p className="text-sm text-destructive">{errors.entryDate.message}</p>
+              <p className="text-sm text-destructive">
+                {errors.entryDate.message}
+              </p>
             ) : null}
           </div>
           <div className="flex flex-col gap-2">
-            <Label>Linked PO</Label>
+            <Label>Linked PO *</Label>
             <Select
-              value={poId}
+              value={poId || undefined}
               onValueChange={(value) =>
                 setValue("poId", value, { shouldValidate: true })
               }
@@ -260,7 +294,7 @@ export function RecordCuttingDrawer({
                 <SelectValue placeholder="Select PO" />
               </SelectTrigger>
               <SelectContent>
-                {mockProductionPOs.map((po) => (
+                {purchaseOrders.map((po) => (
                   <SelectItem key={po.id} value={po.id}>
                     {po.poNumber}
                   </SelectItem>
@@ -275,55 +309,88 @@ export function RecordCuttingDrawer({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <Label>Design No</Label>
+            <Label>Design No *</Label>
             <Select
-              value={watch("designNumber")}
-              onValueChange={(value) =>
-                setValue("designNumber", value, { shouldValidate: true })
-              }
-              disabled={designs.length === 0}
+              value={poItemId || undefined}
+              onValueChange={(value) => {
+                setValue("poItemId", value, { shouldValidate: true });
+                setValue("bundleId", "");
+              }}
+              disabled={!poId || poDetailQuery.isLoading}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select design" />
+                <SelectValue
+                  placeholder={
+                    !poId
+                      ? "Select PO first"
+                      : poDetailQuery.isLoading
+                        ? "Loading..."
+                        : "Select design"
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
-                {designs.map((design) => (
-                  <SelectItem key={design.id} value={design.designNumber}>
-                    {design.designNumber} ({design.garmentType})
+                {designs.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.designNumber}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {errors.designNumber ? (
+            {errors.poItemId ? (
               <p className="text-sm text-destructive">
-                {errors.designNumber.message}
+                {errors.poItemId.message}
               </p>
             ) : null}
           </div>
           <div className="flex flex-col gap-2">
-            <Label>Bundle No</Label>
-            <Input
-              value={`BND-${selectedPo?.poNumber.slice(-3) ?? "048"}`}
-              readOnly
-              className="bg-slate-50"
-            />
+            <Label>Bundle No *</Label>
+            <Select
+              value={bundleId || undefined}
+              onValueChange={(value) =>
+                setValue("bundleId", value, { shouldValidate: true })
+              }
+              disabled={!poId || issuesQuery.isLoading}
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={
+                    issuesQuery.isLoading
+                      ? "Loading..."
+                      : "Select CUTTING bundle"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {cuttingBundles.map((bundle) => (
+                  <SelectItem key={bundle.id} value={bundle.id}>
+                    {bundle.bundleNumber}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.bundleId ? (
+              <p className="text-sm text-destructive">
+                {errors.bundleId.message}
+              </p>
+            ) : null}
           </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <Label>Karigar</Label>
+            <Label>Karigar *</Label>
             <Select
-              value={watch("karigarId")}
+              value={karigarId || undefined}
               onValueChange={(value) =>
                 setValue("karigarId", value, { shouldValidate: true })
               }
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select karigar" />
+                <SelectValue placeholder="Auto from bundle / select" />
               </SelectTrigger>
               <SelectContent>
-                {mockProductionKarigars.map((party) => (
+                {karigars.map((party) => (
                   <SelectItem key={party.id} value={party.id}>
                     {party.name}
                   </SelectItem>
@@ -338,18 +405,23 @@ export function RecordCuttingDrawer({
           </div>
           <div className="flex flex-col gap-2">
             <Label>Fabric Issued (kg)</Label>
-            <Input value="45.50" readOnly className="bg-slate-50" />
+            <Input
+              value={fabricIssued.toLocaleString("en-IN")}
+              readOnly
+              disabled
+              className="bg-slate-50"
+            />
           </div>
         </div>
 
         <div>
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Pieces Cut by Size
-          </p>
-          <div className="grid grid-cols-3 gap-3">
-            {sizeKeys.map((key) => (
-              <div key={key} className="flex flex-col gap-1.5">
-                <Label className="text-xs text-slate-500">{sizeLabels[key]}</Label>
+          <Label className="mb-2 block">Size Quantities *</Label>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {SIZE_FIELD_KEYS.map((key) => (
+              <div key={key} className="flex flex-col gap-1">
+                <Label className="text-xs text-slate-500">
+                  {SIZE_FIELD_LABELS[key]}
+                </Label>
                 <Input
                   type="number"
                   min={0}
@@ -359,53 +431,37 @@ export function RecordCuttingDrawer({
             ))}
           </div>
           {errors.qty_0_3M ? (
-            <p className="mt-2 text-sm text-destructive">
+            <p className="mt-1 text-sm text-destructive">
               {errors.qty_0_3M.message}
             </p>
           ) : null}
-          <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3 text-sm">
-            <span className="text-slate-500">Total Pieces</span>
-            <span className="font-bold text-slate-900">
-              {totalPieces.toLocaleString("en-IN")}
-            </span>
-          </div>
+          <p className="mt-2 text-sm font-medium text-slate-700">
+            Total Pieces: {totalPieces.toLocaleString("en-IN")}
+          </p>
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="wastageKg">Wastage (kg)</Label>
+          <Label>Wastage (kg)</Label>
           <Input
-            id="wastageKg"
             type="number"
+            min={0}
             step="0.01"
             {...register("wastageKg", { valueAsNumber: true })}
           />
           {errors.wastageKg ? (
-            <p className="text-sm text-destructive">{errors.wastageKg.message}</p>
+            <p className="text-sm text-destructive">
+              {errors.wastageKg.message}
+            </p>
           ) : null}
         </div>
 
         <KarigarPaymentBox
-          variant="peach"
-          operationName="Fabric Cutting"
+          operationName={cuttingOp?.name ?? "Cutting"}
           rate={rate}
           pieces={totalPieces}
           amountDue={amountDue}
-          title="Payment Calculation"
+          piecesLabel="Pieces Cut"
         />
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="notes">Notes</Label>
-          <Textarea
-            id="notes"
-            rows={2}
-            placeholder="Optional notes..."
-            {...register("notes")}
-          />
-        </div>
-
-        {selectedDesign ? (
-          <p className="sr-only">{selectedDesign.garmentType}</p>
-        ) : null}
       </form>
     </DrawerForm>
   );

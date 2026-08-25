@@ -1,20 +1,20 @@
-import type { MockIssueDisplayStatus } from "@/mock/inventory";
+import type { IssueStatus } from "@/types";
 import { cn } from "@/lib/utils";
 
-const statusClass: Record<MockIssueDisplayStatus, string> = {
+const statusClass: Record<IssueStatus, string> = {
+  ISSUED: "bg-amber-50 text-amber-800",
   RETURNED: "bg-emerald-50 text-emerald-700",
-  IN_PROGRESS: "bg-amber-50 text-amber-800",
-  PENDING: "bg-slate-100 text-slate-600",
+  PARTIAL: "bg-sky-50 text-sky-700",
 };
 
-const statusLabel: Record<MockIssueDisplayStatus, string> = {
+const statusLabel: Record<IssueStatus, string> = {
+  ISSUED: "ISSUED",
   RETURNED: "RETURNED",
-  IN_PROGRESS: "IN PROGRESS",
-  PENDING: "PENDING",
+  PARTIAL: "PARTIAL",
 };
 
 interface IssueStatusBadgeProps {
-  status: MockIssueDisplayStatus;
+  status: IssueStatus;
 }
 
 export function IssueStatusBadge({ status }: IssueStatusBadgeProps) {

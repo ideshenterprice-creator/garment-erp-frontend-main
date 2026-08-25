@@ -1,7 +1,8 @@
 "use client";
 
 import { format } from "date-fns";
-import type { MockIssueRecord } from "@/mock/inventory";
+import type { IssueRecord } from "@/types";
+import { getUnitLabel } from "@/lib/inventory";
 import { EmptyState } from "@/components/common/EmptyState";
 import { IssueStatusBadge } from "@/components/modules/inventory/IssueStatusBadge";
 import { IssueTypeBadge } from "@/components/modules/inventory/IssueTypeBadge";
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/table";
 
 interface IssueHistoryTableProps {
-  issues: MockIssueRecord[];
+  issues: IssueRecord[];
 }
 
 export function IssueHistoryTable({ issues }: IssueHistoryTableProps) {
@@ -70,15 +71,15 @@ export function IssueHistoryTable({ issues }: IssueHistoryTableProps) {
                   {issue.issueNumber}
                 </TableCell>
                 <TableCell>
-                  {format(new Date(issue.issueDate), "dd MMM")}
+                  {format(new Date(issue.issueDate), "dd MMM yyyy")}
                 </TableCell>
                 <TableCell>
                   <IssueTypeBadge type={issue.issueType} />
                 </TableCell>
-                <TableCell>{issue.materialLabel}</TableCell>
+                <TableCell>{issue.product.name}</TableCell>
                 <TableCell className="font-semibold text-slate-900">
-                  {issue.quantityIssued.toLocaleString("en-IN")}{" "}
-                  {issue.unitLabel}
+                  {Number(issue.quantityIssued).toLocaleString("en-IN")}{" "}
+                  {getUnitLabel(issue.product.unit)}
                 </TableCell>
                 <TableCell>{issue.karigar.name}</TableCell>
                 <TableCell>{issue.po.poNumber}</TableCell>
@@ -88,7 +89,7 @@ export function IssueHistoryTable({ issues }: IssueHistoryTableProps) {
                   </span>
                 </TableCell>
                 <TableCell>
-                  <IssueStatusBadge status={issue.displayStatus} />
+                  <IssueStatusBadge status={issue.status} />
                 </TableCell>
               </TableRow>
             ))}

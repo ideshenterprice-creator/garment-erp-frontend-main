@@ -1,11 +1,7 @@
 "use client";
 
 import { Filter } from "lucide-react";
-import type { ProductionFilters } from "@/mock/production";
-import {
-  mockProductionKarigars,
-  mockProductionPOs,
-} from "@/mock/production";
+import type { Party, ProductionFilters, PurchaseOrder } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,12 +17,20 @@ interface ProductionFilterBarProps {
   filters: ProductionFilters;
   onChange: (filters: ProductionFilters) => void;
   onApply: () => void;
+  purchaseOrders: PurchaseOrder[];
+  karigars: Party[];
+  posLoading?: boolean;
+  karigarsLoading?: boolean;
 }
 
 export function ProductionFilterBar({
   filters,
   onChange,
   onApply,
+  purchaseOrders,
+  karigars,
+  posLoading = false,
+  karigarsLoading = false,
 }: ProductionFilterBarProps) {
   return (
     <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -38,13 +42,16 @@ export function ProductionFilterBar({
           <Select
             value={filters.poId}
             onValueChange={(value) => onChange({ ...filters, poId: value })}
+            disabled={posLoading}
           >
             <SelectTrigger className="bg-white">
-              <SelectValue placeholder="All POs" />
+              <SelectValue
+                placeholder={posLoading ? "Loading..." : "All POs"}
+              />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All POs</SelectItem>
-              {mockProductionPOs.map((po) => (
+              {purchaseOrders.map((po) => (
                 <SelectItem key={po.id} value={po.id}>
                   {po.poNumber}
                 </SelectItem>
@@ -60,18 +67,18 @@ export function ProductionFilterBar({
           <div className="grid grid-cols-2 gap-2">
             <Input
               type="date"
-              value={filters.dateFrom}
+              value={filters.from}
               className="bg-white"
               onChange={(event) =>
-                onChange({ ...filters, dateFrom: event.target.value })
+                onChange({ ...filters, from: event.target.value })
               }
             />
             <Input
               type="date"
-              value={filters.dateTo}
+              value={filters.to}
               className="bg-white"
               onChange={(event) =>
-                onChange({ ...filters, dateTo: event.target.value })
+                onChange({ ...filters, to: event.target.value })
               }
             />
           </div>
@@ -86,13 +93,18 @@ export function ProductionFilterBar({
             onValueChange={(value) =>
               onChange({ ...filters, karigarId: value })
             }
+            disabled={karigarsLoading}
           >
             <SelectTrigger className="bg-white">
-              <SelectValue placeholder="All Karigars" />
+              <SelectValue
+                placeholder={
+                  karigarsLoading ? "Loading..." : "All Karigars"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All Karigars</SelectItem>
-              {mockProductionKarigars.map((party) => (
+              {karigars.map((party) => (
                 <SelectItem key={party.id} value={party.id}>
                   {party.name}
                 </SelectItem>

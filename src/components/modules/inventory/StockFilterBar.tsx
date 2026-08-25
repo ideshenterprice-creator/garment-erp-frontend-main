@@ -1,7 +1,7 @@
 "use client";
 
 import type { ProductCategory } from "@/types";
-import type { StockSortOption } from "@/mock/inventory";
+import type { StockSortOption } from "@/lib/inventory";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -62,13 +62,14 @@ export function StockFilterBar({
           value={sortBy}
           onValueChange={(value) => onSortChange(value as StockSortOption)}
         >
-          <SelectTrigger className="h-9 w-[160px] border-slate-200 bg-white">
+          <SelectTrigger className="h-9 w-[200px] border-slate-200 bg-white">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="lastUpdated">Last Updated</SelectItem>
-            <SelectItem value="name">Product Name</SelectItem>
-            <SelectItem value="quantity">Available Stock</SelectItem>
+            <SelectItem value="name">Name</SelectItem>
+            <SelectItem value="quantityDesc">Stock (High to Low)</SelectItem>
+            <SelectItem value="quantityAsc">Stock (Low to High)</SelectItem>
           </SelectContent>
         </Select>
       </div>

@@ -1,22 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
-import {
-  generateNextBundleNumber,
-  generateNextIssueNumber,
-  getUnitLabel,
-  ISSUE_TYPE_OPTIONS,
-  mockIssueRecords,
-  mockKarigarParties,
-  mockLinkedPOOptions,
-  mockStockItems,
-} from "@/mock/inventory";
+import type { CreateIssuePayload, IssueType } from "@/types";
 import { BundleNumberDisplay } from "@/components/modules/inventory/BundleNumberDisplay";
 import { StockAvailabilityBox } from "@/components/modules/inventory/StockAvailabilityBox";
 import { StockValidationError } from "@/components/modules/inventory/StockValidationError";
@@ -32,59 +24,111 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ROUTES } from "@/constants/routes";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { getUnitLabel, ISSUE_TYPE_OPTIONS } from "@/lib/inventory";
 import { cn } from "@/lib/utils";
+import {
+  createIssue,
+  getStockByProduct,
+} from "@/services/inventory.service";
+import { getParties, getProducts } from "@/services/masters.service";
+import {
+  getPurchaseOrderById,
+  getPurchaseOrders,
+} from "@/services/purchaseOrders.service";
 
-const issueSchema = z
-  .object({
-    issueDate: z.string().min(1, "Issue date is required"),
-    issueType: z.string().min(1, "Issue type is required"),
-    productId: z.string().min(1, "Material is required"),
-    poId: z.string().min(1, "Linked PO is required"),
-    poItemId: z.string().min(1, "Linked design no is required"),
-    karigarId: z.string().min(1, "Issue to is required"),
-    quantityIssued: z.number().positive("Quantity must be greater than 0"),
-    notes: z.string().optional(),
-  })
-  .superRefine((values, ctx) => {
-    const stock = mockStockItems.find((item) => item.productId === values.productId);
-    if (stock && values.quantityIssued > stock.quantity) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["quantityIssued"],
-        message: `Insufficient stock. Available: ${stock.quantity.toLocaleString("en-IN")}.`,
-      });
-    }
-  });
+const issueSchema = z.object({
+  issueDate: z.string().min(1, "Issue date is required"),
+  issueType: z.enum([
+    "CUTTING",
+    "PRINTING",
+    "STITCHING",
+    "FINISHING",
+    "SAMPLE",
+    "PATTERN",
+  ]),
+  productId: z.string().uuid("Material is required"),
+  poId: z.string().uuid("Linked PO is required"),
+  poItemId: z.string().uuid("Linked design no is required"),
+  karigarId: z.string().uuid("Issue to is required"),
+  quantityIssued: z.number().positive("Quantity must be greater than 0"),
+  notes: z.string().optional(),
+});
 
 type IssueFormValues = z.infer<typeof issueSchema>;
 
+function todayInputValue(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toIsoDate(dateStr: string): string {
+  return new Date(`${dateStr}T00:00:00.000Z`).toISOString();
+}
+
 export function IssueMaterialForm() {
   const router = useRouter();
-  const issueNumber = useMemo(
-    () => generateNextIssueNumber(mockIssueRecords),
-    []
+  const queryClient = useQueryClient();
+
+  const karigarsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PARTIES, { type: "KARIGAR", limit: 100 }],
+    queryFn: () => getParties({ type: "KARIGAR", limit: 100 }),
+  });
+
+  const productsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PRODUCTS, { limit: 100 }],
+    queryFn: () => getProducts({ limit: 100 }),
+  });
+
+  const activePOsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, { status: "ACTIVE", limit: 100 }],
+    queryFn: () => getPurchaseOrders({ status: "ACTIVE", limit: 100 }),
+  });
+
+  const inProductionPOsQuery = useQuery({
+    queryKey: [
+      ...QUERY_KEYS.PURCHASE_ORDERS,
+      { status: "IN_PRODUCTION", limit: 100 },
+    ],
+    queryFn: () => getPurchaseOrders({ status: "IN_PRODUCTION", limit: 100 }),
+  });
+
+  const linkedPOs = useMemo(() => {
+    const active = activePOsQuery.data?.data.data ?? [];
+    const inProduction = inProductionPOsQuery.data?.data.data ?? [];
+    const byId = new Map(
+      [...active, ...inProduction].map((order) => [order.id, order])
+    );
+    return Array.from(byId.values());
+  }, [activePOsQuery.data, inProductionPOsQuery.data]);
+
+  const products = (productsQuery.data?.data.data ?? []).filter(
+    (product) => product.category !== "WASTAGE" && product.isActive
   );
-  const bundleNumber = useMemo(
-    () => generateNextBundleNumber(mockIssueRecords),
-    []
-  );
+  const karigars = karigarsQuery.data?.data.data ?? [];
+
+  const dropdownsReady =
+    karigarsQuery.isSuccess &&
+    productsQuery.isSuccess &&
+    activePOsQuery.isSuccess &&
+    inProductionPOsQuery.isSuccess;
 
   const {
     register,
     handleSubmit,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<IssueFormValues>({
     resolver: zodResolver(issueSchema),
     defaultValues: {
-      issueDate: "2024-04-15",
+      issueDate: todayInputValue(),
       issueType: "CUTTING",
-      productId: "prod-poplin",
-      poId: "po-summer",
-      poItemId: "poi-floral",
-      karigarId: "k-abdul",
-      quantityIssued: 2000,
+      productId: "",
+      poId: "",
+      poItemId: "",
+      karigarId: "",
+      quantityIssued: 0,
       notes: "",
     },
     mode: "onChange",
@@ -94,44 +138,79 @@ export function IssueMaterialForm() {
   const poId = watch("poId");
   const quantityIssued = Number(watch("quantityIssued") || 0);
 
-  const selectedStock = useMemo(
-    () => mockStockItems.find((item) => item.productId === productId),
-    [productId]
-  );
+  const stockQuery = useQuery({
+    queryKey: [...QUERY_KEYS.STOCK, productId],
+    queryFn: () => getStockByProduct(productId),
+    enabled: Boolean(productId),
+    retry: false,
+  });
 
-  const available = selectedStock?.quantity ?? 0;
-  const unit = selectedStock
-    ? getUnitLabel(selectedStock.product.unit)
-    : "kg";
+  const poDetailQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, poId],
+    queryFn: () => getPurchaseOrderById(poId),
+    enabled: Boolean(poId),
+  });
+
+  const selectedProduct = products.find((item) => item.id === productId);
+  const available = Number(stockQuery.data?.data.quantity ?? 0);
+  const unit = getUnitLabel(selectedProduct?.unit ?? stockQuery.data?.data.product.unit);
   const stockExceeded =
-    Boolean(productId) && quantityIssued > 0 && quantityIssued > available;
+    Boolean(productId) &&
+    !stockQuery.isLoading &&
+    quantityIssued > 0 &&
+    quantityIssued > available;
 
-  const designOptions = useMemo(() => {
-    const po = mockLinkedPOOptions.find((item) => item.id === poId);
-    return po?.designs ?? [];
-  }, [poId]);
+  const designOptions = poDetailQuery.data?.data.items ?? [];
 
   useEffect(() => {
+    if (!poId) {
+      setValue("poItemId", "", { shouldValidate: false });
+      return;
+    }
+    if (poDetailQuery.isLoading) return;
+    const current = watch("poItemId");
     if (designOptions.length === 0) {
       setValue("poItemId", "", { shouldValidate: true });
       return;
     }
-    const current = watch("poItemId");
     if (!designOptions.some((item) => item.id === current)) {
       setValue("poItemId", designOptions[0].id, { shouldValidate: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync design when PO changes
-  }, [designOptions, setValue]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync design when PO items load
+  }, [poId, designOptions, poDetailQuery.isLoading, setValue]);
 
-  const [issuedOnce, setIssuedOnce] = useState(false);
+  const createMutation = useMutation({
+    mutationFn: (data: CreateIssuePayload) => createIssue(data),
+    onSuccess: (response) => {
+      const bundle =
+        response.data.bundleNumber ??
+        response.data.bundles?.[0]?.bundleNumber ??
+        "—";
+      toast.success(`Material issued. Bundle ${bundle} created.`);
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STOCK });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ISSUES });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.PURCHASE_ORDERS,
+      });
+      router.push(ROUTES.INVENTORY.ISSUE_HISTORY);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to issue material."));
+    },
+  });
 
   function onSubmit(values: IssueFormValues) {
     if (values.quantityIssued > available) return;
-    setIssuedOnce(true);
-    toast.success(
-      `Material issued successfully. Bundle ${bundleNumber} created.`
-    );
-    router.push(ROUTES.INVENTORY.ISSUE_HISTORY);
+    createMutation.mutate({
+      issueDate: toIsoDate(values.issueDate),
+      issueType: values.issueType as IssueType,
+      productId: values.productId,
+      poId: values.poId,
+      poItemId: values.poItemId,
+      karigarId: values.karigarId,
+      quantityIssued: values.quantityIssued,
+      notes: values.notes?.trim() || undefined,
+    });
   }
 
   return (
@@ -145,7 +224,7 @@ export function IssueMaterialForm() {
             <Label htmlFor="issueNumber">Issue No</Label>
             <Input
               id="issueNumber"
-              value={issueNumber}
+              value="Auto-generated"
               readOnly
               className="bg-slate-50 text-slate-700"
             />
@@ -157,7 +236,9 @@ export function IssueMaterialForm() {
             </Label>
             <Input id="issueDate" type="date" {...register("issueDate")} />
             {errors.issueDate ? (
-              <p className="text-sm text-destructive">{errors.issueDate.message}</p>
+              <p className="text-sm text-destructive">
+                {errors.issueDate.message}
+              </p>
             ) : null}
           </div>
 
@@ -168,7 +249,9 @@ export function IssueMaterialForm() {
             <Select
               value={watch("issueType")}
               onValueChange={(value) =>
-                setValue("issueType", value, { shouldValidate: true })
+                setValue("issueType", value as IssueType, {
+                  shouldValidate: true,
+                })
               }
             >
               <SelectTrigger>
@@ -183,7 +266,9 @@ export function IssueMaterialForm() {
               </SelectContent>
             </Select>
             {errors.issueType ? (
-              <p className="text-sm text-destructive">{errors.issueType.message}</p>
+              <p className="text-sm text-destructive">
+                {errors.issueType.message}
+              </p>
             ) : null}
           </div>
 
@@ -192,18 +277,27 @@ export function IssueMaterialForm() {
               Linked PO <span className="text-red-500">*</span>
             </Label>
             <Select
-              value={poId}
+              value={poId || undefined}
               onValueChange={(value) =>
                 setValue("poId", value, { shouldValidate: true })
               }
+              disabled={
+                activePOsQuery.isLoading || inProductionPOsQuery.isLoading
+              }
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select PO" />
+                <SelectValue
+                  placeholder={
+                    activePOsQuery.isLoading || inProductionPOsQuery.isLoading
+                      ? "Loading..."
+                      : "Select PO"
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
-                {mockLinkedPOOptions.map((po) => (
+                {linkedPOs.map((po) => (
                   <SelectItem key={po.id} value={po.id}>
-                    {po.label}
+                    {po.poNumber} — {po.buyer?.name ?? "Buyer"}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -218,14 +312,22 @@ export function IssueMaterialForm() {
               Linked Design No <span className="text-red-500">*</span>
             </Label>
             <Select
-              value={watch("poItemId")}
+              value={watch("poItemId") || undefined}
               onValueChange={(value) =>
                 setValue("poItemId", value, { shouldValidate: true })
               }
-              disabled={designOptions.length === 0}
+              disabled={!poId || poDetailQuery.isLoading || designOptions.length === 0}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select design" />
+                <SelectValue
+                  placeholder={
+                    !poId
+                      ? "Select PO first"
+                      : poDetailQuery.isLoading
+                        ? "Loading..."
+                        : "Select design"
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
                 {designOptions.map((design) => (
@@ -236,7 +338,9 @@ export function IssueMaterialForm() {
               </SelectContent>
             </Select>
             {errors.poItemId ? (
-              <p className="text-sm text-destructive">{errors.poItemId.message}</p>
+              <p className="text-sm text-destructive">
+                {errors.poItemId.message}
+              </p>
             ) : null}
           </div>
         </div>
@@ -247,16 +351,21 @@ export function IssueMaterialForm() {
               Issue To <span className="text-red-500">*</span>
             </Label>
             <Select
-              value={watch("karigarId")}
+              value={watch("karigarId") || undefined}
               onValueChange={(value) =>
                 setValue("karigarId", value, { shouldValidate: true })
               }
+              disabled={karigarsQuery.isLoading}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select karigar" />
+                <SelectValue
+                  placeholder={
+                    karigarsQuery.isLoading ? "Loading..." : "Select karigar"
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
-                {mockKarigarParties.map((party) => (
+                {karigars.map((party) => (
                   <SelectItem key={party.id} value={party.id}>
                     {party.name}
                   </SelectItem>
@@ -264,7 +373,9 @@ export function IssueMaterialForm() {
               </SelectContent>
             </Select>
             {errors.karigarId ? (
-              <p className="text-sm text-destructive">{errors.karigarId.message}</p>
+              <p className="text-sm text-destructive">
+                {errors.karigarId.message}
+              </p>
             ) : null}
           </div>
 
@@ -273,29 +384,31 @@ export function IssueMaterialForm() {
               Material <span className="text-red-500">*</span>
             </Label>
             <Select
-              value={productId}
+              value={productId || undefined}
               onValueChange={(value) =>
                 setValue("productId", value, { shouldValidate: true })
               }
+              disabled={productsQuery.isLoading}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select material" />
+                <SelectValue
+                  placeholder={
+                    productsQuery.isLoading ? "Loading..." : "Select material"
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
-                {mockStockItems
-                  .filter((item) => item.product.category !== "WASTAGE")
-                  .map((item) => (
-                    <SelectItem key={item.productId} value={item.productId}>
-                      {item.product.name}
-                    </SelectItem>
-                  ))}
+                {products.map((product) => (
+                  <SelectItem key={product.id} value={product.id}>
+                    {product.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            {selectedStock ? (
-              <StockAvailabilityBox available={available} unit={unit} />
-            ) : null}
             {errors.productId ? (
-              <p className="text-sm text-destructive">{errors.productId.message}</p>
+              <p className="text-sm text-destructive">
+                {errors.productId.message}
+              </p>
             ) : null}
           </div>
 
@@ -312,6 +425,17 @@ export function IssueMaterialForm() {
               )}
               {...register("quantityIssued", { valueAsNumber: true })}
             />
+            {productId ? (
+              stockQuery.isLoading ? (
+                <p className="text-sm text-teal-700">Checking stock...</p>
+              ) : stockQuery.isError ? (
+                <p className="text-sm text-destructive">
+                  No stock record for this product.
+                </p>
+              ) : (
+                <StockAvailabilityBox available={available} unit={unit} />
+              )
+            ) : null}
             {errors.quantityIssued ? (
               <p className="text-sm text-destructive">
                 {errors.quantityIssued.message}
@@ -319,7 +443,7 @@ export function IssueMaterialForm() {
             ) : null}
           </div>
 
-          <BundleNumberDisplay bundleNumber={bundleNumber} />
+          <BundleNumberDisplay bundleNumber="Auto-generated" />
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="notes">Notes</Label>
@@ -346,11 +470,16 @@ export function IssueMaterialForm() {
       <div className="mt-6">
         <Button
           type="submit"
-          disabled={isSubmitting || stockExceeded || issuedOnce}
+          disabled={
+            createMutation.isPending ||
+            stockExceeded ||
+            !dropdownsReady ||
+            (Boolean(productId) && stockQuery.isError)
+          }
           className="w-full bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
         >
           <Send className="size-4" />
-          Issue Material
+          {createMutation.isPending ? "Issuing..." : "Issue Material"}
         </Button>
         <p className="mt-2 text-center text-xs text-muted-foreground">
           Stock reduces immediately on save.

@@ -1,5 +1,5 @@
 import type { IssueType } from "@/types";
-import { getIssueTypeLabel } from "@/mock/inventory";
+import { getIssueTypeLabel } from "@/lib/inventory";
 import { cn } from "@/lib/utils";
 
 const typeClass: Record<IssueType, string> = {

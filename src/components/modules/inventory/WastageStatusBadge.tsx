@@ -1,4 +1,4 @@
-import type { WastageStatus } from "@/mock/inventory";
+import type { WastageStatus } from "@/types";
 import { cn } from "@/lib/utils";
 
 const statusClass: Record<WastageStatus, string> = {

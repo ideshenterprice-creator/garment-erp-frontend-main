@@ -4,22 +4,14 @@ import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Save } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  getBundlesForStage,
-  getRateForStage,
-  mockPrintingEntries,
-  mockProductionKarigars,
-  mockProductionPOs,
-  type MockColoringEntry,
-} from "@/mock/production";
+import type { CreateColoringPayload, Party, PurchaseOrder } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { KarigarPaymentBox } from "@/components/modules/production/KarigarPaymentBox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -27,27 +19,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { todayInputValue, toIsoDate } from "@/lib/production";
+import { formatCurrency } from "@/lib/utils";
+import { getKarigars } from "@/services/masters.service";
+import {
+  createColoringEntry,
+  getBundles,
+  getPrintingEntries,
+} from "@/services/production.service";
 
 const coloringSchema = z
   .object({
-    entryDate: z.string().min(1, "Date is required"),
-    poId: z.string().min(1, "Linked PO is required"),
-    designNumber: z.string().min(1, "Design No is required"),
-    bundleNumber: z.string().min(1, "Bundle No is required"),
-    karigarId: z.string().min(1, "Karigar is required"),
+    entryDate: z.string().min(1),
+    bundleId: z.string().uuid("Bundle is required"),
+    poId: z.string().uuid("PO is required"),
+    karigarId: z.string().uuid("Karigar is required"),
     colorApplied: z.string().min(1, "Color applied is required"),
-    piecesReceived: z.number().positive(),
-    piecesReturned: z.number().min(0),
-    piecesRejected: z.number().min(0),
-    notes: z.string().optional(),
+    piecesReturned: z.number().int().min(0),
+    piecesRejected: z.number().int().min(0),
   })
   .superRefine((values, ctx) => {
-    if (values.piecesReturned + values.piecesRejected > values.piecesReceived) {
+    if (values.piecesReturned + values.piecesRejected <= 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["piecesReturned"],
-        message: "Returned + rejected cannot exceed pieces received",
+        message: "Returned or rejected pieces required",
       });
     }
   });
@@ -57,16 +55,17 @@ type ColoringFormValues = z.infer<typeof coloringSchema>;
 interface RecordColoringDrawerProps {
   open: boolean;
   onClose: () => void;
-  onSave: (entry: MockColoringEntry) => void;
+  purchaseOrders: PurchaseOrder[];
+  karigars: Party[];
 }
 
 export function RecordColoringDrawer({
   open,
   onClose,
-  onSave,
+  purchaseOrders,
+  karigars,
 }: RecordColoringDrawerProps) {
-  const rate = getRateForStage("COLORING");
-  const printBundles = useMemo(() => getBundlesForStage("PRINTING"), []);
+  const queryClient = useQueryClient();
 
   const {
     register,
@@ -74,272 +73,283 @@ export function RecordColoringDrawer({
     reset,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<ColoringFormValues>({
     resolver: zodResolver(coloringSchema),
     defaultValues: {
-      entryDate: "2023-10-24",
+      entryDate: todayInputValue(),
+      bundleId: "",
       poId: "",
-      designNumber: "",
-      bundleNumber: "",
       karigarId: "",
-      colorApplied: "White",
-      piecesReceived: 965,
-      piecesReturned: 962,
-      piecesRejected: 3,
-      notes: "",
+      colorApplied: "",
+      piecesReturned: 0,
+      piecesRejected: 0,
     },
   });
 
+  const bundleId = watch("bundleId");
+  const karigarId = watch("karigarId");
   const piecesReturned = Number(watch("piecesReturned") || 0);
   const piecesRejected = Number(watch("piecesRejected") || 0);
-  const piecesReceived = Number(watch("piecesReceived") || 0);
-  const amountDue = piecesReturned * rate;
-  const poId = watch("poId");
 
-  const designs = useMemo(() => {
-    return mockProductionPOs.find((po) => po.id === poId)?.designs ?? [];
-  }, [poId]);
+  const bundlesQuery = useQuery({
+    queryKey: [
+      ...QUERY_KEYS.BUNDLES,
+      { currentStage: "COLORING", limit: 100 },
+    ],
+    queryFn: () => getBundles({ currentStage: "COLORING", limit: 100 }),
+    enabled: open,
+  });
+
+  const printingQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PRODUCTION, "printing", { bundleId, limit: 1 }],
+    queryFn: () => getPrintingEntries({ bundleId, limit: 1 }),
+    enabled: open && Boolean(bundleId),
+  });
+
+  const profilesQuery = useQuery({
+    queryKey: [...QUERY_KEYS.KARIGARS, { limit: 100 }],
+    queryFn: () => getKarigars({ limit: 100 }),
+    enabled: open,
+  });
+
+  const bundles = bundlesQuery.data?.data.data ?? [];
+  const selectedBundle = bundles.find((b) => b.id === bundleId);
+  const piecesReceived = Number(
+    printingQuery.data?.data.data[0]?.piecesReturned ?? 0
+  );
+  const exceeded =
+    piecesReceived > 0 && piecesReturned + piecesRejected > piecesReceived;
+
+  const coloringOp = useMemo(() => {
+    const profile = (profilesQuery.data?.data.data ?? []).find(
+      (p) => p.partyId === karigarId
+    );
+    return (
+      profile?.operations.find((op) => op.stage === "COLORING") ??
+      profile?.operations.find((op) =>
+        op.name.toUpperCase().includes("COLOR")
+      )
+    );
+  }, [profilesQuery.data, karigarId]);
+
+  const rate = Number(coloringOp?.ratePerPiece ?? 0);
+  const amountDue = piecesReturned * rate;
 
   useEffect(() => {
     if (!open) return;
-    const first = printBundles[0];
-    const printing = mockPrintingEntries.find(
-      (entry) => entry.bundleNumber === first?.bundleNumber
-    );
     reset({
-      entryDate: "2023-10-24",
-      poId: printing?.poId ?? mockProductionPOs[0]?.id ?? "",
-      designNumber: printing?.designNumber ?? "DSN-8821",
-      bundleNumber: first?.bundleNumber ?? "",
-      karigarId: "k-amit-k",
-      colorApplied: "White",
-      piecesReceived: first?.pieces ?? 965,
-      piecesReturned: Math.max(0, (first?.pieces ?? 965) - 3),
-      piecesRejected: 3,
-      notes: "",
+      entryDate: todayInputValue(),
+      bundleId: "",
+      poId: "",
+      karigarId: "",
+      colorApplied: "",
+      piecesReturned: 0,
+      piecesRejected: 0,
     });
-  }, [open, reset, printBundles]);
+  }, [open, reset]);
 
   useEffect(() => {
-    const bundle = watch("bundleNumber");
-    const printing = mockPrintingEntries.find(
-      (entry) => entry.bundleNumber === bundle
-    );
-    if (printing) {
-      setValue("piecesReceived", printing.piecesReturned);
-      setValue("poId", printing.poId);
-      setValue("designNumber", printing.designNumber);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watch("bundleNumber"), setValue]);
+    if (!selectedBundle) return;
+    setValue("poId", selectedBundle.poId, { shouldValidate: true });
+  }, [selectedBundle, setValue]);
 
-  function onSubmit(values: ColoringFormValues) {
-    const po = mockProductionPOs.find((item) => item.id === values.poId);
-    const karigar = mockProductionKarigars.find(
-      (item) => item.id === values.karigarId
-    );
-    const colorMap: Record<string, string> = {
-      White: "#ffffff",
-      Blue: "#2563eb",
-      Yellow: "#eab308",
-      Pink: "#ec4899",
-      Red: "#dc2626",
-    };
-
-    const entry: MockColoringEntry = {
-      id: `cl-${Date.now()}`,
-      entryNumber: `CL-${String(Date.now()).slice(-3)}`,
-      entryDate: values.entryDate,
-      poId: values.poId,
-      poNumber: po?.poNumber ?? values.poId,
-      designNumber: values.designNumber,
-      bundleNumber: values.bundleNumber,
-      piecesReceived: values.piecesReceived,
-      colorApplied: values.colorApplied,
-      colorHex: colorMap[values.colorApplied] ?? "#94a3b8",
-      piecesReturned: values.piecesReturned,
-      piecesRejected: values.piecesRejected,
-      karigarId: values.karigarId,
-      karigarName: karigar?.name ?? "Karigar",
-      ratePerPiece: rate,
-      amountDue: values.piecesReturned * rate,
-    };
-
-    onSave(entry);
-    toast.success("Coloring entry saved successfully");
-    onClose();
-  }
+  const createMutation = useMutation({
+    mutationFn: (data: CreateColoringPayload) => createColoringEntry(data),
+    onSuccess: (response) => {
+      const pay =
+        response.data.paymentAmount ??
+        Number(response.data.payment?.amountDue ?? amountDue);
+      toast.success(
+        `Coloring entry saved. Payment of ${formatCurrency(pay)} calculated.`
+      );
+      void queryClient.invalidateQueries({
+        queryKey: [...QUERY_KEYS.PRODUCTION, "coloring"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.KARIGAR_PAYMENTS,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.PURCHASE_ORDERS,
+      });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.BUNDLES });
+      onClose();
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to save coloring entry."));
+    },
+  });
 
   return (
     <DrawerForm
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        if (!createMutation.isPending) onClose();
+      }}
       title="Record Coloring Entry"
-      description="Add or edit system information"
+      description="Record colored pieces returned from the colorist"
       footer={
-        <div className="flex flex-col gap-2">
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
           <Button
             type="submit"
-            form="coloring-entry-form"
-            disabled={isSubmitting}
-            className="w-full bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
+            form="record-coloring-form"
+            disabled={createMutation.isPending || exceeded}
+            className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
           >
-            <Save className="size-4" />
-            Save Entry
-          </Button>
-          <Button type="button" variant="ghost" className="w-full" onClick={onClose}>
-            Cancel
+            {createMutation.isPending ? "Saving..." : "Save Entry"}
           </Button>
         </div>
       }
     >
       <form
-        id="coloring-entry-form"
-        onSubmit={handleSubmit(onSubmit)}
+        id="record-coloring-form"
+        onSubmit={handleSubmit((values) =>
+          createMutation.mutate({
+            entryDate: toIsoDate(values.entryDate),
+            bundleId: values.bundleId,
+            poId: values.poId,
+            karigarId: values.karigarId,
+            colorApplied: values.colorApplied,
+            piecesReturned: values.piecesReturned,
+            piecesRejected: values.piecesRejected,
+          })
+        )}
         className="flex flex-col gap-4"
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="colorDate">Date</Label>
-            <Input id="colorDate" type="date" {...register("entryDate")} />
+            <Label>Entry Date *</Label>
+            <Input type="date" {...register("entryDate")} />
           </div>
           <div className="flex flex-col gap-2">
-            <Label>Linked PO</Label>
+            <Label>Bundle (COLORING) *</Label>
             <Select
-              value={poId}
+              value={bundleId || undefined}
               onValueChange={(value) =>
-                setValue("poId", value, { shouldValidate: true })
+                setValue("bundleId", value, { shouldValidate: true })
               }
+              disabled={bundlesQuery.isLoading}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select PO" />
+                <SelectValue
+                  placeholder={
+                    bundlesQuery.isLoading ? "Loading..." : "Select bundle"
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
-                {mockProductionPOs.map((po) => (
-                  <SelectItem key={po.id} value={po.id}>
-                    {po.poNumber}
+                {bundles.map((bundle) => (
+                  <SelectItem key={bundle.id} value={bundle.id}>
+                    {bundle.bundleNumber}
+                    {bundle.po?.poNumber ? ` — ${bundle.po.poNumber}` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="designNo">Design No</Label>
-            <Input id="designNo" {...register("designNumber")} />
-            {errors.designNumber ? (
+            {errors.bundleId ? (
               <p className="text-sm text-destructive">
-                {errors.designNumber.message}
+                {errors.bundleId.message}
               </p>
             ) : null}
           </div>
-          <div className="flex flex-col gap-2">
-            <Label>Bundle No</Label>
-            <Select
-              value={watch("bundleNumber")}
-              onValueChange={(value) =>
-                setValue("bundleNumber", value, { shouldValidate: true })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select bundle" />
-              </SelectTrigger>
-              <SelectContent>
-                {printBundles.map((bundle) => (
-                  <SelectItem key={bundle.bundleNumber} value={bundle.bundleNumber}>
-                    {bundle.bundleNumber}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs italic text-muted-foreground">
-              Only bundles that completed Printing are shown.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label>Karigar (Artisan)</Label>
-          <Select
-            value={watch("karigarId")}
-            onValueChange={(value) =>
-              setValue("karigarId", value, { shouldValidate: true })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select karigar" />
-            </SelectTrigger>
-            <SelectContent>
-              {mockProductionKarigars.map((party) => (
-                <SelectItem key={party.id} value={party.id}>
-                  {party.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="rounded-lg bg-slate-100 px-4 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Pieces Received for Coloring
-          </p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">
-            {piecesReceived.toLocaleString("en-IN")} pcs
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Locked from previous process: Printing
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="colorApplied">Color Applied</Label>
-          <Input id="colorApplied" {...register("colorApplied")} />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="colorReturned">Returned Pieces</Label>
+            <Label>PO</Label>
             <Input
-              id="colorReturned"
+              value={
+                purchaseOrders.find((p) => p.id === watch("poId"))?.poNumber ??
+                watch("poId")
+              }
+              readOnly
+              disabled
+              className="bg-slate-50"
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label>Karigar *</Label>
+            <Select
+              value={karigarId || undefined}
+              onValueChange={(value) =>
+                setValue("karigarId", value, { shouldValidate: true })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select karigar" />
+              </SelectTrigger>
+              <SelectContent>
+                {karigars.map((party) => (
+                  <SelectItem key={party.id} value={party.id}>
+                    {party.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.karigarId ? (
+              <p className="text-sm text-destructive">
+                {errors.karigarId.message}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label>Color Applied *</Label>
+          <Input
+            placeholder="e.g. White, Navy Blue"
+            {...register("colorApplied")}
+          />
+          {errors.colorApplied ? (
+            <p className="text-sm text-destructive">
+              {errors.colorApplied.message}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="flex flex-col gap-2">
+            <Label>Pieces Received</Label>
+            <Input
+              value={piecesReceived.toLocaleString("en-IN")}
+              readOnly
+              disabled
+              className="bg-slate-50"
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label>Pieces Returned *</Label>
+            <Input
               type="number"
+              min={0}
               {...register("piecesReturned", { valueAsNumber: true })}
             />
-            {errors.piecesReturned ? (
-              <p className="text-sm text-destructive">
-                {errors.piecesReturned.message}
-              </p>
-            ) : null}
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="colorRejected">Rejected Pieces</Label>
+            <Label>Pieces Rejected</Label>
             <Input
-              id="colorRejected"
               type="number"
-              className={cn(piecesRejected > 0 && "border-red-500")}
+              min={0}
               {...register("piecesRejected", { valueAsNumber: true })}
             />
           </div>
         </div>
+        {exceeded ? (
+          <p className="text-sm text-destructive">
+            Returned + rejected cannot exceed received ({piecesReceived}).
+          </p>
+        ) : null}
 
         <KarigarPaymentBox
-          variant="gray"
-          title="Payment Summary"
-          operationName="Coloring"
+          operationName={coloringOp?.name ?? "Coloring"}
           rate={rate}
           pieces={piecesReturned}
           amountDue={amountDue}
           piecesLabel="Pieces Returned"
         />
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="colorNotes">Notes</Label>
-          <Textarea id="colorNotes" rows={2} {...register("notes")} />
-        </div>
-
-        {designs.length ? null : null}
       </form>
     </DrawerForm>
   );

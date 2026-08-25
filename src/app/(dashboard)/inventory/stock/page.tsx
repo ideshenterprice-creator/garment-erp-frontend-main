@@ -1,14 +1,10 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
-import { toast } from "sonner";
-import {
-  mockStockItems,
-  type MockStockItem,
-  type StockSortOption,
-} from "@/mock/inventory";
-import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle } from "lucide-react";
+import type { Stock } from "@/types";
+import { PageHeader } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
 import { AdjustStockDrawer } from "@/components/modules/inventory/AdjustStockDrawer";
@@ -17,63 +13,89 @@ import {
   type StockFilterTab,
 } from "@/components/modules/inventory/StockFilterBar";
 import { StockTable } from "@/components/modules/inventory/StockTable";
+import { Button } from "@/components/ui/button";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import type { StockSortOption } from "@/lib/inventory";
+import { getStock } from "@/services/inventory.service";
 
 const PAGE_SIZE = 10;
 
+function sortStockItems(items: Stock[], sortBy: StockSortOption): Stock[] {
+  const next = [...items];
+  next.sort((a, b) => {
+    if (sortBy === "name") {
+      return a.product.name.localeCompare(b.product.name);
+    }
+    if (sortBy === "quantityDesc") {
+      return Number(b.quantity) - Number(a.quantity);
+    }
+    if (sortBy === "quantityAsc") {
+      return Number(a.quantity) - Number(b.quantity);
+    }
+    const aTime = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
+    const bTime = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
+    return bTime - aTime;
+  });
+  return next;
+}
+
 export default function InventoryStockPage() {
-  const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<MockStockItem[]>(mockStockItems);
   const [filter, setFilter] = useState<StockFilterTab>("ALL");
   const [sortBy, setSortBy] = useState<StockSortOption>("lastUpdated");
   const [page, setPage] = useState(1);
-  const [adjustTarget, setAdjustTarget] = useState<MockStockItem | null>(null);
+  const [adjustTarget, setAdjustTarget] = useState<Stock | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
+  const filters = {
+    category: filter === "ALL" ? undefined : filter,
+    page,
+    limit: PAGE_SIZE,
+  };
 
-  const filtered = useMemo(() => {
-    const next =
-      filter === "ALL"
-        ? [...items]
-        : items.filter((item) => item.product.category === filter);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: [...QUERY_KEYS.STOCK, filters],
+    queryFn: () => getStock(filters),
+  });
 
-    next.sort((a, b) => {
-      if (sortBy === "name") {
-        return a.product.name.localeCompare(b.product.name);
-      }
-      if (sortBy === "quantity") {
-        return b.quantity - a.quantity;
-      }
-      const aTime = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0;
-      const bTime = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0;
-      return bTime - aTime;
-    });
+  const zeroCountQuery = useQuery({
+    queryKey: [
+      ...QUERY_KEYS.STOCK,
+      "zero-count",
+      { category: filters.category, limit: 100 },
+    ],
+    queryFn: () =>
+      getStock({
+        category: filters.category,
+        limit: 100,
+      }),
+  });
 
-    return next;
-  }, [filter, items, sortBy]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const items = useMemo(
+    () => sortStockItems(data?.data.data ?? [], sortBy),
+    [data?.data.data, sortBy]
+  );
+  const total = data?.data.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const zeroStockCount = (zeroCountQuery.data?.data.data ?? []).filter(
+    (item) =>
+      item.stockStatus === "OUT_OF_STOCK" || Number(item.quantity) === 0
+  ).length;
 
   return (
     <div>
       <PageHeader
         title="Inventory — Stock"
         subtitle="Live stock of all fabric, accessories and finished goods. Updates automatically on every purchase, issue and production entry."
-        actionButton={
-          <PageHeaderAction
-            label="Add Entry"
-            icon={<Plus className="size-4" />}
-            onClick={() =>
-              toast.message("Add Entry", {
-                description: "Stock entry form will connect to the inventory API.",
-              })
-            }
-          />
-        }
       />
+
+      {zeroStockCount > 0 ? (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <p>
+            <span className="font-semibold">{zeroStockCount}</span>{" "}
+            {zeroStockCount === 1 ? "item has" : "items have"} zero stock
+          </p>
+        </div>
+      ) : null}
 
       <StockFilterBar
         filter={filter}
@@ -88,23 +110,24 @@ export default function InventoryStockPage() {
         }}
       />
 
-      {loading ? (
+      {isLoading ? (
         <TableSkeleton rows={8} />
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
+          <p className="text-sm font-medium text-slate-900">
+            Could not load stock
+          </p>
+          <Button type="button" variant="outline" onClick={() => void refetch()}>
+            Try Again
+          </Button>
+        </div>
       ) : (
         <>
-          <StockTable
-            items={pageItems}
-            onAdjust={setAdjustTarget}
-            onAdd={() =>
-              toast.message("Add Entry", {
-                description: "Stock entry form will connect to the inventory API.",
-              })
-            }
-          />
+          <StockTable items={items} onAdjust={setAdjustTarget} />
           <Pagination
             page={page}
             totalPages={totalPages}
-            totalItems={filtered.length}
+            totalItems={total}
             pageSize={PAGE_SIZE}
             onPageChange={setPage}
             label="products"
@@ -116,26 +139,6 @@ export default function InventoryStockPage() {
         open={Boolean(adjustTarget)}
         item={adjustTarget}
         onClose={() => setAdjustTarget(null)}
-        onSave={(itemId, nextQuantity) => {
-          setItems((prev) =>
-            prev.map((item) =>
-              item.id === itemId
-                ? {
-                    ...item,
-                    quantity: nextQuantity,
-                    lastUpdated: new Date().toISOString(),
-                    lastUpdatedLabel: "Just now",
-                    stockStatus:
-                      nextQuantity === 0
-                        ? "OUT_OF_STOCK"
-                        : nextQuantity < 100
-                          ? "LOW"
-                          : "AVAILABLE",
-                  }
-                : item
-            )
-          );
-        }}
       />
     </div>
   );

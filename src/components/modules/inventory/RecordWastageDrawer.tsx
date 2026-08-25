@@ -4,15 +4,10 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Info } from "lucide-react";
 import { toast } from "sonner";
-import {
-  generateNextWastageNumber,
-  mockKarigarParties,
-  mockStockItems,
-  type MockWastageEntry,
-} from "@/mock/inventory";
-import { mockPurchaseOrders } from "@/mock/purchaseOrders";
+import type { CreateWastagePayload } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,13 +20,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { createWastage } from "@/services/inventory.service";
+import { getParties, getProducts } from "@/services/masters.service";
+import { getPurchaseOrders } from "@/services/purchaseOrders.service";
 
 const wastageSchema = z.object({
-  poId: z.string().min(1, "Purchase order is required"),
+  poId: z.string().uuid("Purchase order is required"),
   designCode: z.string().min(1, "Design code is required"),
-  fabricProductId: z.string().min(1, "Fabric type is required"),
+  fabricProductId: z.string().uuid("Fabric type is required"),
   wastageQty: z.number().positive("Wastage quantity must be positive"),
-  returnedByPartyId: z.string().min(1, "Returned by is required"),
+  returnedByPartyId: z.string().uuid("Returned by is required"),
   dateOfReturn: z.string().min(1, "Date of return is required"),
   remarks: z.string().optional(),
 });
@@ -40,30 +40,51 @@ type WastageFormValues = z.infer<typeof wastageSchema>;
 
 interface RecordWastageDrawerProps {
   open: boolean;
-  existing: MockWastageEntry[];
   onClose: () => void;
-  onSave: (entry: MockWastageEntry) => void;
 }
 
-const fabricOptions = mockStockItems.filter(
-  (item) =>
-    item.product.category === "RAW_MATERIAL" ||
-    item.product.category === "WASTAGE"
-);
+function todayInputValue(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toIsoDate(dateStr: string): string {
+  return new Date(`${dateStr}T00:00:00.000Z`).toISOString();
+}
 
 export function RecordWastageDrawer({
   open,
-  existing,
   onClose,
-  onSave,
 }: RecordWastageDrawerProps) {
+  const queryClient = useQueryClient();
+
+  const posQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, { limit: 100 }],
+    queryFn: () => getPurchaseOrders({ limit: 100 }),
+    enabled: open,
+  });
+
+  const productsQuery = useQuery({
+    queryKey: [
+      ...QUERY_KEYS.PRODUCTS,
+      { category: "RAW_MATERIAL", limit: 100 },
+    ],
+    queryFn: () => getProducts({ category: "RAW_MATERIAL", limit: 100 }),
+    enabled: open,
+  });
+
+  const karigarsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PARTIES, { type: "KARIGAR", limit: 100 }],
+    queryFn: () => getParties({ type: "KARIGAR", limit: 100 }),
+    enabled: open,
+  });
+
   const {
     register,
     handleSubmit,
     reset,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<WastageFormValues>({
     resolver: zodResolver(wastageSchema),
     defaultValues: {
@@ -72,7 +93,7 @@ export function RecordWastageDrawer({
       fabricProductId: "",
       wastageQty: 0,
       returnedByPartyId: "",
-      dateOfReturn: "2024-02-16",
+      dateOfReturn: todayInputValue(),
       remarks: "",
     },
   });
@@ -85,59 +106,64 @@ export function RecordWastageDrawer({
       fabricProductId: "",
       wastageQty: 0,
       returnedByPartyId: "",
-      dateOfReturn: "2024-02-16",
+      dateOfReturn: todayInputValue(),
       remarks: "",
     });
   }, [open, reset]);
 
-  function onSubmit(values: WastageFormValues) {
-    const po = mockPurchaseOrders.find((item) => item.id === values.poId);
-    const fabric = fabricOptions.find(
-      (item) => item.productId === values.fabricProductId
-    );
-    const returnedBy =
-      mockKarigarParties.find((party) => party.id === values.returnedByPartyId)
-        ?.name ?? "Unknown";
+  const createMutation = useMutation({
+    mutationFn: (data: CreateWastagePayload) => createWastage(data),
+    onSuccess: () => {
+      toast.success("Wastage recorded.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.WASTAGE });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STOCK });
+      onClose();
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to record wastage."));
+    },
+  });
 
-    const entry: MockWastageEntry = {
-      id: `cw-${Date.now()}`,
-      entryNumber: generateNextWastageNumber(existing),
-      date: values.dateOfReturn,
+  function onSubmit(values: WastageFormValues) {
+    createMutation.mutate({
       poId: values.poId,
-      poNumber: po?.poNumber ?? values.poId,
-      designCode: values.designCode,
-      fabricType: fabric?.product.name ?? "Fabric",
+      designCode: values.designCode.trim(),
       fabricProductId: values.fabricProductId,
       wastageQty: values.wastageQty,
-      returnedBy,
-      status: "IN_STOCK",
-      remarks: values.remarks,
-      valuePerKg: 45,
-    };
-
-    onSave(entry);
-    toast.success("Wastage record saved. Added to IN STOCK inventory.");
-    onClose();
+      returnedByPartyId: values.returnedByPartyId,
+      dateOfReturn: toIsoDate(values.dateOfReturn),
+      remarks: values.remarks?.trim() || undefined,
+    });
   }
+
+  const dropdownsLoading =
+    posQuery.isLoading || productsQuery.isLoading || karigarsQuery.isLoading;
 
   return (
     <DrawerForm
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        if (!createMutation.isPending) onClose();
+      }}
       title="Record Wastage Return"
       description="Capture fabric leftovers from cutting floor"
       footer={
         <div className="flex items-center justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={createMutation.isPending}
+            onClick={onClose}
+          >
             Cancel
           </Button>
           <Button
             type="submit"
             form="record-wastage-form"
-            disabled={isSubmitting}
+            disabled={createMutation.isPending || dropdownsLoading}
             className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
           >
-            Save Record
+            {createMutation.isPending ? "Saving..." : "Save Record"}
           </Button>
         </div>
       }
@@ -152,16 +178,19 @@ export function RecordWastageDrawer({
             Purchase Order Number <span className="text-red-500">*</span>
           </Label>
           <Select
-            value={watch("poId")}
+            value={watch("poId") || undefined}
             onValueChange={(value) =>
               setValue("poId", value, { shouldValidate: true })
             }
+            disabled={posQuery.isLoading}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select PO..." />
+              <SelectValue
+                placeholder={posQuery.isLoading ? "Loading..." : "Select PO..."}
+              />
             </SelectTrigger>
             <SelectContent>
-              {mockPurchaseOrders.map((po) => (
+              {(posQuery.data?.data.data ?? []).map((po) => (
                 <SelectItem key={po.id} value={po.id}>
                   {po.poNumber}
                 </SelectItem>
@@ -211,18 +240,23 @@ export function RecordWastageDrawer({
             Fabric Type <span className="text-red-500">*</span>
           </Label>
           <Select
-            value={watch("fabricProductId")}
+            value={watch("fabricProductId") || undefined}
             onValueChange={(value) =>
               setValue("fabricProductId", value, { shouldValidate: true })
             }
+            disabled={productsQuery.isLoading}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select Fabric..." />
+              <SelectValue
+                placeholder={
+                  productsQuery.isLoading ? "Loading..." : "Select Fabric..."
+                }
+              />
             </SelectTrigger>
             <SelectContent>
-              {fabricOptions.map((item) => (
-                <SelectItem key={item.productId} value={item.productId}>
-                  {item.product.name}
+              {(productsQuery.data?.data.data ?? []).map((product) => (
+                <SelectItem key={product.id} value={product.id}>
+                  {product.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -263,16 +297,23 @@ export function RecordWastageDrawer({
             Returned By (Cutter Name) <span className="text-red-500">*</span>
           </Label>
           <Select
-            value={watch("returnedByPartyId")}
+            value={watch("returnedByPartyId") || undefined}
             onValueChange={(value) =>
               setValue("returnedByPartyId", value, { shouldValidate: true })
             }
+            disabled={karigarsQuery.isLoading}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Full name of personnel" />
+              <SelectValue
+                placeholder={
+                  karigarsQuery.isLoading
+                    ? "Loading..."
+                    : "Select karigar"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
-              {mockKarigarParties.map((party) => (
+              {(karigarsQuery.data?.data.data ?? []).map((party) => (
                 <SelectItem key={party.id} value={party.id}>
                   {party.name}
                 </SelectItem>

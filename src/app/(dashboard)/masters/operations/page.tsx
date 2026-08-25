@@ -1,33 +1,78 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
-import { AlertTriangle, Plus } from "lucide-react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
-import { mockOperations, type MockOperation } from "@/mock/masters";
+import type { Operation, OperationStage } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { OperationsTable } from "@/components/modules/masters/OperationsTable";
 import { OperationsDrawer } from "@/components/modules/masters/OperationsDrawer";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { useDebounce } from "@/hooks/useDebounce";
+import { getErrorMessage } from "@/lib/errorHandler";
+import {
+  getOperations,
+  toggleOperationStatus,
+} from "@/services/masters.service";
+
+type StageFilter = "ALL" | OperationStage;
 
 const PAGE_SIZE = 10;
 
 export default function OperationsMasterPage() {
-  const [loading, setLoading] = useState(true);
-  const [operations, setOperations] = useState<MockOperation[]>(mockOperations);
+  const queryClient = useQueryClient();
+  const [filter, setFilter] = useState<StageFilter>("ALL");
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 500);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editing, setEditing] = useState<MockOperation | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<MockOperation | null>(null);
+  const [editing, setEditing] = useState<Operation | null>(null);
+  const [statusTarget, setStatusTarget] = useState<Operation | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
+  const filters = {
+    stage: filter === "ALL" ? undefined : filter,
+    page,
+    limit: PAGE_SIZE,
+    search: debouncedSearch || undefined,
+  };
 
-  const totalPages = Math.max(1, Math.ceil(operations.length / PAGE_SIZE));
-  const pageItems = operations.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: [...QUERY_KEYS.OPERATIONS, filters],
+    queryFn: () => getOperations(filters),
+  });
+
+  const operations = data?.data.data ?? [];
+  const total = data?.data.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const filtersActive = filter !== "ALL" || Boolean(debouncedSearch);
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      toggleOperationStatus(id, isActive),
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.isActive ? "Operation activated." : "Operation deactivated."
+      );
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.OPERATIONS });
+      setStatusTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to update operation status."));
+    },
+  });
+
+  function clearFilters() {
+    setFilter("ALL");
+    setSearch("");
+    setPage(1);
+  }
 
   return (
     <div>
@@ -60,26 +105,85 @@ export default function OperationsMasterPage() {
         </div>
       </div>
 
-      {loading ? (
-        <TableSkeleton />
+      <FilterBar
+        tabs={[
+          { label: "All", value: "ALL" },
+          { label: "Cutting", value: "CUTTING" },
+          { label: "Printing", value: "PRINTING" },
+          { label: "Coloring", value: "COLORING" },
+          { label: "Stitching", value: "STITCHING" },
+          { label: "Finishing", value: "FINISHING" },
+        ]}
+        activeTab={filter}
+        onTabChange={(value) => {
+          setFilter(value as StageFilter);
+          setPage(1);
+        }}
+        extraActions={
+          <div className="relative w-full sm:w-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Search operations..."
+              className="pl-9"
+            />
+          </div>
+        }
+      />
+
+      {isLoading ? (
+        <TableSkeleton rows={5} />
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
+          <p className="text-sm font-medium text-slate-900">
+            Could not load operations
+          </p>
+          <Button type="button" variant="outline" onClick={() => void refetch()}>
+            Try Again
+          </Button>
+        </div>
       ) : (
         <>
           <OperationsTable
-            operations={pageItems}
+            operations={operations}
             onEdit={(operation) => {
               setEditing(operation);
               setDrawerOpen(true);
             }}
-            onDelete={setDeleteTarget}
+            onToggleStatus={setStatusTarget}
             onAdd={() => {
               setEditing(null);
               setDrawerOpen(true);
             }}
+            emptyTitle={
+              filtersActive
+                ? "No operations match your filters"
+                : "No operations added yet"
+            }
+            emptyDescription={
+              filtersActive
+                ? "Try clearing filters or adjusting your search."
+                : "Add production operations and piece rates."
+            }
+            emptyActionLabel="+ Add Operation"
+            emptyActionIsClear={filtersActive}
+            onEmptyAction={
+              filtersActive
+                ? clearFilters
+                : () => {
+                    setEditing(null);
+                    setDrawerOpen(true);
+                  }
+            }
           />
           <Pagination
             page={page}
             totalPages={totalPages}
-            totalItems={operations.length}
+            totalItems={total}
             pageSize={PAGE_SIZE}
             onPageChange={setPage}
             label="operations"
@@ -94,32 +198,30 @@ export default function OperationsMasterPage() {
           setEditing(null);
         }}
         operation={editing}
-        onSave={(operation) => {
-          setOperations((prev) => {
-            const exists = prev.some((item) => item.id === operation.id);
-            if (exists) {
-              return prev.map((item) =>
-                item.id === operation.id ? operation : item
-              );
-            }
-            return [operation, ...prev];
-          });
-        }}
       />
 
       <ConfirmDialog
-        open={Boolean(deleteTarget)}
-        onClose={() => setDeleteTarget(null)}
-        title={`Delete ${deleteTarget?.name ?? "operation"}?`}
-        description="This operation and its locked rate will be removed from the rate matrix."
-        confirmLabel="Delete"
+        open={Boolean(statusTarget)}
+        onClose={() => {
+          if (!toggleStatusMutation.isPending) setStatusTarget(null);
+        }}
+        title={
+          statusTarget?.isActive
+            ? `Deactivate ${statusTarget.name}?`
+            : `Activate ${statusTarget?.name ?? "operation"}?`
+        }
+        description={
+          statusTarget?.isActive
+            ? "This operation will no longer be assignable to karigars."
+            : "This operation will become available again."
+        }
+        confirmLabel={statusTarget?.isActive ? "Deactivate" : "Activate"}
         onConfirm={() => {
-          if (!deleteTarget) return;
-          setOperations((prev) =>
-            prev.filter((item) => item.id !== deleteTarget.id)
-          );
-          toast.success(`${deleteTarget.name} deleted`);
-          setPage(1);
+          if (!statusTarget) return;
+          toggleStatusMutation.mutate({
+            id: statusTarget.id,
+            isActive: !statusTarget.isActive,
+          });
         }}
       />
     </div>

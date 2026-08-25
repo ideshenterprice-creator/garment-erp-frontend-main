@@ -1,69 +1,137 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { format, isBefore, differenceInCalendarDays } from "date-fns";
-import { Ban, Pencil } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AxiosError } from "axios";
+import { format } from "date-fns";
+import { Ban } from "lucide-react";
 import { toast } from "sonner";
-import { mockPurchaseOrders, type MockPurchaseOrder } from "@/mock/purchaseOrders";
 import { POStatusBadge } from "@/components/modules/purchase-orders/POStatusBadge";
 import { PODetailCard } from "@/components/modules/purchase-orders/PODetailCard";
 import { POItemsTable } from "@/components/modules/purchase-orders/POItemsTable";
-import { POProductionProgress } from "@/components/modules/purchase-orders/POProductionProgress";
+import {
+  calcStagesProgressPercent,
+  POProductionProgress,
+  stagesFromProductionProgress,
+} from "@/components/modules/purchase-orders/POProductionProgress";
 import { POFabricLots } from "@/components/modules/purchase-orders/POFabricLots";
+import { POQuickActions } from "@/components/modules/purchase-orders/POQuickActions";
 import { CancelPODialog } from "@/components/modules/purchase-orders/CancelPODialog";
+import { TableSkeleton } from "@/components/common/LoadingSpinner";
+import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
-import { usePOStore } from "@/store/poStore";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { getDeliveryDateClassName } from "@/lib/purchaseOrders";
 import { cn } from "@/lib/utils";
+import {
+  cancelPurchaseOrder,
+  getPOFabricLots,
+  getPOProductionStatus,
+  getPurchaseOrderById,
+} from "@/services/purchaseOrders.service";
 
 interface PODetailPageProps {
   poId: string;
 }
 
-function calcProgress(order: MockPurchaseOrder): number {
-  const stages = order.productionStages ?? [];
-  if (stages.length === 0) return 0;
-  const totalIssued = stages.reduce((sum, stage) => sum + stage.issued, 0);
-  const totalDone = stages.reduce((sum, stage) => sum + stage.done, 0);
-  if (totalIssued === 0) return 0;
-  return Math.round((totalDone / totalIssued) * 100);
-}
-
 export function PODetailPage({ poId }: PODetailPageProps) {
   const router = useRouter();
-  const setSelectedPO = usePOStore((state) => state.setSelectedPO);
-  const initial = useMemo(
-    () => mockPurchaseOrders.find((order) => order.id === poId) ?? null,
-    [poId]
-  );
-  const [order, setOrder] = useState<MockPurchaseOrder | null>(initial);
+  const queryClient = useQueryClient();
   const [cancelOpen, setCancelOpen] = useState(false);
 
-  if (!order) {
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, poId],
+    queryFn: () => getPurchaseOrderById(poId),
+    enabled: Boolean(poId),
+  });
+
+  const order = data?.data;
+
+  const productionQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, poId, "production-status"],
+    queryFn: () => getPOProductionStatus(poId),
+    enabled: Boolean(poId) && Boolean(order) && !order?.productionProgress,
+  });
+
+  const fabricLotsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, poId, "fabric-lots"],
+    queryFn: () => getPOFabricLots(poId),
+    enabled: Boolean(poId) && Boolean(order) && !order?.fabricLots,
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      cancelPurchaseOrder(id, reason),
+    onSuccess: () => {
+      toast.success("Purchase order cancelled.");
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.PURCHASE_ORDERS,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, poId],
+      });
+      setCancelOpen(false);
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "Failed to cancel PO."));
+    },
+  });
+
+  if (isLoading) {
+    return <TableSkeleton rows={8} />;
+  }
+
+  const status =
+    error instanceof AxiosError ? error.response?.status : undefined;
+
+  if (isError && status === 404) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
-        <h1 className="text-lg font-semibold">Purchase order not found</h1>
-        <Button
-          type="button"
-          className="mt-4"
-          variant="outline"
-          onClick={() => router.push(ROUTES.PURCHASE_ORDERS.ROOT)}
-        >
-          Back to list
+      <EmptyState
+        title="Purchase order not found"
+        description="This purchase order may have been removed or the link is invalid."
+        actionLabel="Back to list"
+        onAction={() => router.push(ROUTES.PURCHASE_ORDERS.ROOT)}
+      />
+    );
+  }
+
+  if (isError || !order) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
+        <p className="text-sm font-medium text-slate-900">
+          Could not load purchase order
+        </p>
+        <Button type="button" variant="outline" onClick={() => void refetch()}>
+          Try Again
         </Button>
       </div>
     );
   }
 
-  const deliveryDate = new Date(order.deliveryDate);
-  const daysLeft = differenceInCalendarDays(deliveryDate, new Date());
-  const deliveryWarning =
-    isBefore(deliveryDate, new Date()) || daysLeft <= 45;
+  const productionProgress =
+    order.productionProgress ?? productionQuery.data?.data.stages;
+  const stages = stagesFromProductionProgress(productionProgress);
+  const progressPercent = calcStagesProgressPercent(stages);
+
+  const fabricLots =
+    order.fabricLots ?? fabricLotsQuery.data?.data.lots ?? [];
+  const fabricNeeded =
+    fabricLotsQuery.data?.data.totalFabricRequired ?? order.totalPieces;
+  const fabricReceived = fabricLotsQuery.data?.data.totalFabricReceived;
 
   const canCancel =
-    order.status !== "COMPLETED" && order.status !== "CANCELLED";
+    order.status === "ACTIVE" || order.status === "IN_PRODUCTION";
+  const isCancelled = order.status === "CANCELLED";
 
   return (
     <div className="flex flex-col gap-6">
@@ -82,102 +150,69 @@ export function PODetailPage({ poId }: PODetailPageProps) {
             >
               {order.buyer.name}
             </Link>
-            , {order.buyer.country} • Ordered{" "}
+            {order.buyer.country ? `, ${order.buyer.country}` : ""} • Ordered{" "}
             {format(new Date(order.orderDate), "dd MMM yyyy")} •{" "}
             <span
               className={cn(
-                "font-semibold",
-                deliveryWarning ? "text-red-600" : "text-slate-700"
+                getDeliveryDateClassName(order.deliveryDate, order.status)
               )}
             >
-              Deliver by {format(deliveryDate, "dd MMM yyyy")}
+              Deliver by {format(new Date(order.deliveryDate), "dd MMM yyyy")}
             </span>
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!canCancel}
-            onClick={() =>
-              router.push(`${ROUTES.PURCHASE_ORDERS.DETAIL(order.id)}?edit=1`)
-            }
-          >
-            <Pencil className="size-4" />
-            Edit PO
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-            disabled={!canCancel}
-            onClick={() => {
-              setSelectedPO(order.id);
-              setCancelOpen(true);
-            }}
-          >
-            <Ban className="size-4" />
-            Cancel PO
-          </Button>
+          {canCancel ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+              onClick={() => setCancelOpen(true)}
+              disabled={cancelMutation.isPending}
+            >
+              <Ban className="size-4" />
+              Cancel PO
+            </Button>
+          ) : null}
         </div>
       </div>
 
       <PODetailCard order={order} />
       <POItemsTable items={order.items ?? []} />
-      <POProductionProgress
-        stages={
-          order.productionStages ?? [
-            {
-              stage: "Cutting",
-              issued: 0,
-              done: 0,
-              pending: 0,
-              status: "PENDING",
-            },
-            {
-              stage: "Printing",
-              issued: 0,
-              done: 0,
-              pending: 0,
-              status: "PENDING",
-            },
-            {
-              stage: "Coloring",
-              issued: 0,
-              done: 0,
-              pending: 0,
-              status: "PENDING",
-            },
-            {
-              stage: "Stitching",
-              issued: 0,
-              done: 0,
-              pending: 0,
-              status: "PENDING",
-            },
-            {
-              stage: "Finishing",
-              issued: 0,
-              done: 0,
-              pending: 0,
-              status: "PENDING",
-            },
-          ]
-        }
-        progressPercent={calcProgress(order)}
-      />
-      <POFabricLots
-        lots={order.fabricLots ?? []}
-        fabricNeededKg={order.fabricNeededKg ?? 0}
-      />
+
+      {productionQuery.isLoading && !order.productionProgress ? (
+        <TableSkeleton rows={4} />
+      ) : (
+        <POProductionProgress
+          stages={stages}
+          progressPercent={progressPercent}
+        />
+      )}
+
+      {fabricLotsQuery.isLoading && !order.fabricLots ? (
+        <TableSkeleton rows={3} />
+      ) : (
+        <POFabricLots
+          lots={fabricLots}
+          fabricNeededKg={Number(fabricNeeded)}
+          totalFabricReceived={
+            fabricReceived !== undefined ? Number(fabricReceived) : undefined
+          }
+          poId={order.id}
+        />
+      )}
+
+      {!isCancelled ? <POQuickActions poId={order.id} /> : null}
 
       <CancelPODialog
         open={cancelOpen}
         poNumber={order.poNumber}
-        onClose={() => setCancelOpen(false)}
-        onConfirm={() => {
-          setOrder({ ...order, status: "CANCELLED" });
-          toast.success(`${order.poNumber} cancelled`);
+        isPending={cancelMutation.isPending}
+        onClose={() => {
+          if (!cancelMutation.isPending) setCancelOpen(false);
+        }}
+        onConfirm={(reason) => {
+          cancelMutation.mutate({ id: order.id, reason });
         }}
       />
     </div>

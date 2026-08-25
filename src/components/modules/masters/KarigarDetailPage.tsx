@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Ban, Pencil, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import type { KarigarProfile } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { StatCard } from "@/components/common/StatCard";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { KarigarDrawer } from "@/components/modules/masters/KarigarDrawer";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,10 +21,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { ROUTES } from "@/constants/routes";
+import { toggleKarigarStatus } from "@/services/masters.service";
+import { getKarigarPayments } from "@/services/accounts.service";
 
 interface KarigarDetailPageProps {
   karigar: KarigarProfile;
-  onUpdate: (karigar: KarigarProfile) => void;
 }
 
 function paymentLabel(type: KarigarProfile["paymentType"]) {
@@ -31,10 +37,42 @@ function paymentLabel(type: KarigarProfile["paymentType"]) {
   return "Both";
 }
 
-export function KarigarDetailPage({ karigar, onUpdate }: KarigarDetailPageProps) {
+export function KarigarDetailPage({ karigar }: KarigarDetailPageProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // Accounts API filters by party id (karigar party), not profile id.
+  const paymentsQuery = useQuery({
+    queryKey: [
+      ...QUERY_KEYS.KARIGAR_PAYMENTS,
+      { karigarId: karigar.partyId, page: 1, limit: 10 },
+    ],
+    queryFn: () =>
+      getKarigarPayments({
+        karigarId: karigar.partyId,
+        page: 1,
+        limit: 10,
+      }),
+  });
+
+  const payments = paymentsQuery.data?.data.data ?? [];
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      toggleKarigarStatus(id, isActive),
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.isActive ? "Karigar activated." : "Karigar deactivated."
+      );
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.KARIGARS });
+      setConfirmOpen(false);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to update karigar status."));
+    },
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,7 +80,7 @@ export function KarigarDetailPage({ karigar, onUpdate }: KarigarDetailPageProps)
         <div className="flex items-start gap-3">
           <button
             type="button"
-            onClick={() => router.push("/masters/karigar")}
+            onClick={() => router.push(ROUTES.MASTERS.KARIGAR)}
             className="mt-1 rounded-md p-1 text-slate-500 hover:bg-slate-100"
             aria-label="Back"
           >
@@ -65,8 +103,9 @@ export function KarigarDetailPage({ karigar, onUpdate }: KarigarDetailPageProps)
               />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {karigar.party.city}, {karigar.party.country} ·{" "}
-              {karigar.party.contact}
+              {karigar.party.city || "—"}
+              {karigar.party.country ? `, ${karigar.party.country}` : ""} ·{" "}
+              {karigar.party.contact || "—"}
             </p>
           </div>
         </div>
@@ -80,6 +119,7 @@ export function KarigarDetailPage({ karigar, onUpdate }: KarigarDetailPageProps)
             variant="outline"
             className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
             onClick={() => setConfirmOpen(true)}
+            disabled={toggleStatusMutation.isPending}
           >
             <Ban className="size-4" />
             {karigar.isActive ? "Deactivate" : "Activate"}
@@ -99,7 +139,7 @@ export function KarigarDetailPage({ karigar, onUpdate }: KarigarDetailPageProps)
           value={
             karigar.paymentType === "PIECE_RATE"
               ? "—"
-              : formatCurrency(karigar.weeklySalary)
+              : formatCurrency(Number(karigar.weeklySalary ?? 0))
           }
           accent="yellow"
         />
@@ -129,32 +169,32 @@ export function KarigarDetailPage({ karigar, onUpdate }: KarigarDetailPageProps)
                   </TableCell>
                 </TableRow>
               ) : (
-                karigar.operations.map((item) => (
-                  <TableRow key={item.id}>
+                karigar.operations.map((operation) => (
+                  <TableRow key={operation.id}>
                     <TableCell className="font-medium">
-                      {item.operation.name}
+                      {operation.name}
                     </TableCell>
                     <TableCell>
                       <StatusBadge
                         label={
-                          item.operation.stage.charAt(0) +
-                          item.operation.stage.slice(1).toLowerCase()
+                          operation.stage.charAt(0) +
+                          operation.stage.slice(1).toLowerCase()
                         }
                         variant={
-                          item.operation.stage === "CUTTING"
+                          operation.stage === "CUTTING"
                             ? "cutting"
-                            : item.operation.stage === "PRINTING"
+                            : operation.stage === "PRINTING"
                               ? "printing"
-                              : item.operation.stage === "COLORING"
+                              : operation.stage === "COLORING"
                                 ? "coloring"
-                                : item.operation.stage === "STITCHING"
+                                : operation.stage === "STITCHING"
                                   ? "stitching"
                                   : "finishing"
                         }
                       />
                     </TableCell>
                     <TableCell>
-                      ₹{item.operation.ratePerPiece.toFixed(2)}
+                      ₹{Number(operation.ratePerPiece).toFixed(2)}
                     </TableCell>
                   </TableRow>
                 ))
@@ -164,16 +204,96 @@ export function KarigarDetailPage({ karigar, onUpdate }: KarigarDetailPageProps)
         </div>
       </div>
 
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-semibold text-slate-900">Recent Payments</h2>
+          <button
+            type="button"
+            className="text-sm font-medium text-[#1b3a3a] hover:underline"
+            onClick={() =>
+              router.push(
+                `${ROUTES.ACCOUNTS.KARIGAR_PAYMENTS}?karigarId=${karigar.partyId}`
+              )
+            }
+          >
+            View All Payments →
+          </button>
+        </div>
+        {paymentsQuery.isLoading ? (
+          <TableSkeleton rows={4} />
+        ) : paymentsQuery.isError ? (
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              Could not load payment history.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void paymentsQuery.refetch()}
+            >
+              Try Again
+            </Button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Payment #</TableHead>
+                  <TableHead>Operation</TableHead>
+                  <TableHead>Pieces</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {payments.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="text-center text-muted-foreground"
+                    >
+                      No payments yet
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  payments.map((payment) => (
+                    <TableRow key={payment.id}>
+                      <TableCell className="font-medium">
+                        {payment.paymentNumber}
+                      </TableCell>
+                      <TableCell>{payment.operation?.name ?? "—"}</TableCell>
+                      <TableCell>{payment.piecesCompleted}</TableCell>
+                      <TableCell>
+                        {formatCurrency(Number(payment.amountDue))}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge
+                          label={payment.status}
+                          variant={payment.status === "PAID" ? "paid" : "pending"}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+
       <KarigarDrawer
         open={editOpen}
         onClose={() => setEditOpen(false)}
         karigar={karigar}
-        onSave={onUpdate}
       />
 
       <ConfirmDialog
         open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
+        onClose={() => {
+          if (!toggleStatusMutation.isPending) setConfirmOpen(false);
+        }}
         title={karigar.isActive ? "Deactivate karigar?" : "Activate karigar?"}
         description={
           karigar.isActive
@@ -182,10 +302,10 @@ export function KarigarDetailPage({ karigar, onUpdate }: KarigarDetailPageProps)
         }
         confirmLabel={karigar.isActive ? "Deactivate" : "Activate"}
         onConfirm={() => {
-          onUpdate({ ...karigar, isActive: !karigar.isActive });
-          toast.success(
-            karigar.isActive ? "Karigar deactivated" : "Karigar activated"
-          );
+          toggleStatusMutation.mutate({
+            id: karigar.id,
+            isActive: !karigar.isActive,
+          });
         }}
       />
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { Ban, Pencil } from "lucide-react";
 import type { KarigarProfile } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -18,8 +18,13 @@ interface KarigarTableProps {
   karigars: KarigarProfile[];
   onRowClick: (karigar: KarigarProfile) => void;
   onEdit: (karigar: KarigarProfile) => void;
-  onDelete: (karigar: KarigarProfile) => void;
+  onToggleStatus: (karigar: KarigarProfile) => void;
   onAdd?: () => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  emptyActionLabel?: string;
+  onEmptyAction?: () => void;
+  emptyActionIsClear?: boolean;
 }
 
 function paymentLabel(type: KarigarProfile["paymentType"]) {
@@ -38,16 +43,33 @@ export function KarigarTable({
   karigars,
   onRowClick,
   onEdit,
-  onDelete,
+  onToggleStatus,
   onAdd,
+  emptyTitle = "No karigar profiles found",
+  emptyDescription = "Create karigar profiles linked to party master.",
+  emptyActionLabel = "Add Karigar",
+  onEmptyAction,
+  emptyActionIsClear = false,
 }: KarigarTableProps) {
   if (karigars.length === 0) {
     return (
       <EmptyState
-        title="No karigar profiles found"
-        description="Create karigar profiles linked to party master."
-        actionLabel="Add Karigar"
-        onAction={onAdd}
+        title={emptyTitle}
+        description={emptyDescription}
+        actionLabel={emptyActionIsClear ? undefined : emptyActionLabel}
+        onAction={emptyActionIsClear ? undefined : onEmptyAction ?? onAdd}
+        actionButton={
+          emptyActionIsClear && onEmptyAction ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4"
+              onClick={onEmptyAction}
+            >
+              Clear Filters
+            </Button>
+          ) : undefined
+        }
       />
     );
   }
@@ -91,7 +113,7 @@ export function KarigarTable({
                 <TableCell className="font-medium text-slate-900">
                   {karigar.party.name}
                 </TableCell>
-                <TableCell>{karigar.party.contact}</TableCell>
+                <TableCell>{karigar.party.contact || "—"}</TableCell>
                 <TableCell>
                   <StatusBadge
                     label={paymentLabel(karigar.paymentType)}
@@ -103,12 +125,12 @@ export function KarigarTable({
                     {karigar.operations.length === 0 ? (
                       <span className="text-sm text-muted-foreground">—</span>
                     ) : (
-                      karigar.operations.map((item) => (
+                      karigar.operations.map((operation) => (
                         <span
-                          key={item.id}
+                          key={operation.id}
                           className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
                         >
-                          {item.operation.name}
+                          {operation.name}
                         </span>
                       ))
                     )}
@@ -117,7 +139,7 @@ export function KarigarTable({
                 <TableCell>
                   {karigar.paymentType === "PIECE_RATE"
                     ? "—"
-                    : `₹${karigar.weeklySalary.toLocaleString("en-IN")}`}
+                    : `₹${Number(karigar.weeklySalary ?? 0).toLocaleString("en-IN")}`}
                 </TableCell>
                 <TableCell>
                   <StatusBadge
@@ -144,12 +166,13 @@ export function KarigarTable({
                       variant="ghost"
                       size="icon"
                       className="size-8 text-red-500 hover:bg-red-50"
+                      title={karigar.isActive ? "Deactivate" : "Activate"}
                       onClick={(event) => {
                         event.stopPropagation();
-                        onDelete(karigar);
+                        onToggleStatus(karigar);
                       }}
                     >
-                      <Trash2 className="size-4" />
+                      <Ban className="size-4" />
                     </Button>
                   </div>
                 </TableCell>

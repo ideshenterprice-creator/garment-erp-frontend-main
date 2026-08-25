@@ -4,10 +4,10 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Camera } from "lucide-react";
 import { toast } from "sonner";
-import type { ProductCategory, ProductUnit, SizeLabel } from "@/types";
-import type { MockProduct } from "@/mock/masters";
+import type { CreateProductPayload, Product, SizeLabel } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { createProduct, updateProduct } from "@/services/masters.service";
 
 const sizeOptions: { label: string; value: SizeLabel }[] = [
   { label: "0-3M", value: "SIZE_0_3M" },
@@ -37,7 +40,6 @@ const productSchema = z.object({
   unit: z.enum(["KG", "PCS", "METERS", "ROLLS"]),
   gstRate: z.number().min(0, "GST rate is required"),
   description: z.string().optional(),
-  garmentType: z.string().optional(),
   sizes: z.array(z.string()).optional(),
 });
 
@@ -46,8 +48,7 @@ type ProductFormValues = z.infer<typeof productSchema>;
 interface ProductDrawerProps {
   open: boolean;
   onClose: () => void;
-  product?: MockProduct | null;
-  onSave: (product: MockProduct) => void;
+  product?: Product | null;
 }
 
 const defaultValues: ProductFormValues = {
@@ -56,17 +57,12 @@ const defaultValues: ProductFormValues = {
   unit: "PCS",
   gstRate: 18,
   description: "",
-  garmentType: "Top / T-Shirt",
   sizes: [],
 };
 
-export function ProductDrawer({
-  open,
-  onClose,
-  product,
-  onSave,
-}: ProductDrawerProps) {
+export function ProductDrawer({ open, onClose, product }: ProductDrawerProps) {
   const isEdit = Boolean(product);
+  const queryClient = useQueryClient();
 
   const {
     register,
@@ -74,7 +70,7 @@ export function ProductDrawer({
     reset,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues,
@@ -91,9 +87,8 @@ export function ProductDrawer({
         name: product.name,
         category: product.category,
         unit: product.unit,
-        gstRate: product.gstRate,
-        description: product.description,
-        garmentType: product.garmentType ?? "Top / T-Shirt",
+        gstRate: Number(product.gstRate),
+        description: product.description ?? "",
         sizes: product.sizes?.map((size) => size.sizeLabel) ?? [],
       });
     } else {
@@ -108,31 +103,62 @@ export function ProductDrawer({
     setValue("sizes", next, { shouldValidate: true });
   }
 
+  const addProductMutation = useMutation({
+    mutationFn: (data: CreateProductPayload) => createProduct(data),
+    onSuccess: () => {
+      toast.success("Product added successfully.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRODUCTS });
+      onClose();
+      reset(defaultValues);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to add product."));
+    },
+  });
+
+  const editProductMutation = useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<CreateProductPayload>;
+    }) => updateProduct(id, data),
+    onSuccess: () => {
+      toast.success("Product updated.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRODUCTS });
+      if (product?.id) {
+        void queryClient.invalidateQueries({
+          queryKey: [...QUERY_KEYS.PRODUCTS, product.id],
+        });
+      }
+      onClose();
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to update product."));
+    },
+  });
+
+  const isPending =
+    addProductMutation.isPending || editProductMutation.isPending;
+
   function onSubmit(values: ProductFormValues) {
-    const next: MockProduct = {
-      id: product?.id ?? `prod-${Date.now()}`,
-      productCode: product?.productCode ?? `SKU-${Date.now().toString().slice(-4)}`,
+    const payload: CreateProductPayload = {
       name: values.name,
-      category: values.category as ProductCategory,
-      unit: values.unit as ProductUnit,
+      category: values.category,
+      unit: values.unit,
       gstRate: values.gstRate,
-      description: values.description ?? "",
-      isActive: product?.isActive ?? true,
-      displayStatus: product?.displayStatus ?? "ACTIVE",
-      garmentType: values.garmentType,
-      sizes:
-        values.category === "FINISHED_GOOD"
-          ? (values.sizes ?? []).map((sizeLabel, index) => ({
-              id: `size-${index}`,
-              productId: product?.id ?? "new",
-              sizeLabel: sizeLabel as SizeLabel,
-            }))
-          : undefined,
+      description: values.description || undefined,
+      ...(values.category === "FINISHED_GOOD"
+        ? { sizes: (values.sizes ?? []) as SizeLabel[] }
+        : {}),
     };
 
-    onSave(next);
-    toast.success(isEdit ? "Product updated successfully" : "Product saved successfully");
-    onClose();
+    if (isEdit && product) {
+      editProductMutation.mutate({ id: product.id, data: payload });
+      return;
+    }
+    addProductMutation.mutate(payload);
   }
 
   return (
@@ -143,16 +169,20 @@ export function ProductDrawer({
       description="Configure basic information and production rules."
       footer={
         <div className="flex items-center justify-end gap-3">
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="ghost" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
           <Button
             type="submit"
             form="product-form"
-            disabled={isSubmitting}
+            disabled={isPending}
             className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
           >
-            {isEdit ? "Update Product" : "Save Product"}
+            {isPending
+              ? "Saving..."
+              : isEdit
+                ? "Update Product"
+                : "Save Product"}
           </Button>
         </div>
       }
@@ -240,23 +270,6 @@ export function ProductDrawer({
 
         {category === "FINISHED_GOOD" ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-3 flex flex-col gap-2">
-              <Label>Garment Type</Label>
-              <Select
-                value={watch("garmentType") ?? "Top / T-Shirt"}
-                onValueChange={(value) => setValue("garmentType", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Top / T-Shirt">Top / T-Shirt</SelectItem>
-                  <SelectItem value="Bodysuit">Bodysuit</SelectItem>
-                  <SelectItem value="Romper">Romper</SelectItem>
-                  <SelectItem value="Bottom">Bottom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div>
               <Label className="mb-2 block">Size Range</Label>
               <div className="grid grid-cols-2 gap-2">

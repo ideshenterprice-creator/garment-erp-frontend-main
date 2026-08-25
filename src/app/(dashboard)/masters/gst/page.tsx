@@ -1,36 +1,27 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
-import { toast } from "sonner";
-import { mockGSTRates, type MockGSTRate } from "@/mock/masters";
+import type { GSTRate } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
-import { Pagination } from "@/components/common/Pagination";
-import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { GSTTable } from "@/components/modules/masters/GSTTable";
 import { GSTDrawer } from "@/components/modules/masters/GSTDrawer";
-
-const PAGE_SIZE = 10;
+import { Button } from "@/components/ui/button";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { getGSTRates } from "@/services/masters.service";
 
 export default function GSTMasterPage() {
-  const [loading, setLoading] = useState(true);
-  const [rates, setRates] = useState<MockGSTRate[]>(mockGSTRates);
-  const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editing, setEditing] = useState<MockGSTRate | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<MockGSTRate | null>(null);
+  const [editing, setEditing] = useState<GSTRate | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: QUERY_KEYS.GST,
+    queryFn: () => getGSTRates(),
+  });
 
-  const totalPages = Math.max(1, Math.ceil(rates.length / PAGE_SIZE));
-  const pageItems = useMemo(
-    () => rates.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [rates, page]
-  );
+  const rates = data?.data ?? [];
 
   return (
     <div>
@@ -49,31 +40,29 @@ export default function GSTMasterPage() {
         }
       />
 
-      {loading ? (
-        <TableSkeleton />
+      {isLoading ? (
+        <TableSkeleton rows={6} />
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
+          <p className="text-sm font-medium text-slate-900">
+            Could not load GST rates
+          </p>
+          <Button type="button" variant="outline" onClick={() => void refetch()}>
+            Try Again
+          </Button>
+        </div>
       ) : (
-        <>
-          <GSTTable
-            rates={pageItems}
-            onEdit={(rate) => {
-              setEditing(rate);
-              setDrawerOpen(true);
-            }}
-            onDelete={setDeleteTarget}
-            onAdd={() => {
-              setEditing(null);
-              setDrawerOpen(true);
-            }}
-          />
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            totalItems={rates.length}
-            pageSize={PAGE_SIZE}
-            onPageChange={setPage}
-            label="entries"
-          />
-        </>
+        <GSTTable
+          rates={rates}
+          onEdit={(rate) => {
+            setEditing(rate);
+            setDrawerOpen(true);
+          }}
+          onAdd={() => {
+            setEditing(null);
+            setDrawerOpen(true);
+          }}
+        />
       )}
 
       <GSTDrawer
@@ -83,29 +72,6 @@ export default function GSTMasterPage() {
           setEditing(null);
         }}
         rate={editing}
-        onSave={(rate) => {
-          setRates((prev) => {
-            const exists = prev.some((item) => item.id === rate.id);
-            if (exists) {
-              return prev.map((item) => (item.id === rate.id ? rate : item));
-            }
-            return [rate, ...prev];
-          });
-        }}
-      />
-
-      <ConfirmDialog
-        open={Boolean(deleteTarget)}
-        onClose={() => setDeleteTarget(null)}
-        title={`Delete ${deleteTarget?.category ?? "GST rate"}?`}
-        description="This tax category will be removed from the GST master."
-        confirmLabel="Delete"
-        onConfirm={() => {
-          if (!deleteTarget) return;
-          setRates((prev) => prev.filter((item) => item.id !== deleteTarget.id));
-          toast.success("GST rate deleted");
-          setPage(1);
-        }}
       />
     </div>
   );

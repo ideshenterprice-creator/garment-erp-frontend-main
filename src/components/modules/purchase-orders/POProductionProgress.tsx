@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { POProductionStage } from "@/mock/purchaseOrders";
+import type { POProductionStages, POStageProgressStatus } from "@/types";
 import { ROUTES } from "@/constants/routes";
 import { cn } from "@/lib/utils";
 import {
@@ -13,12 +13,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+interface StageRow {
+  stage: string;
+  issued: number;
+  done: number;
+  pending: number;
+  status: POStageProgressStatus;
+}
+
 interface POProductionProgressProps {
-  stages: POProductionStage[];
+  stages: StageRow[];
   progressPercent: number;
 }
 
-function stageBadge(status: POProductionStage["status"]) {
+function stageBadge(status: POStageProgressStatus) {
   if (status === "DONE") {
     return {
       label: "DONE",
@@ -35,6 +43,46 @@ function stageBadge(status: POProductionStage["status"]) {
     label: "PENDING",
     className: "bg-slate-100 text-slate-600",
   };
+}
+
+export function stagesFromProductionProgress(
+  progress?: POProductionStages | null
+): StageRow[] {
+  const empty: StageRow[] = [
+    { stage: "Cutting", issued: 0, done: 0, pending: 0, status: "PENDING" },
+    { stage: "Printing", issued: 0, done: 0, pending: 0, status: "PENDING" },
+    { stage: "Coloring", issued: 0, done: 0, pending: 0, status: "PENDING" },
+    { stage: "Stitching", issued: 0, done: 0, pending: 0, status: "PENDING" },
+    { stage: "Finishing", issued: 0, done: 0, pending: 0, status: "PENDING" },
+  ];
+
+  if (!progress) return empty;
+
+  const mapStage = (
+    label: string,
+    data: POProductionStages[keyof POProductionStages]
+  ): StageRow => ({
+    stage: label,
+    issued: Number(data.issued),
+    done: Number(data.completed),
+    pending: Number(data.pending),
+    status: data.status,
+  });
+
+  return [
+    mapStage("Cutting", progress.cutting),
+    mapStage("Printing", progress.printing),
+    mapStage("Coloring", progress.coloring),
+    mapStage("Stitching", progress.stitching),
+    mapStage("Finishing", progress.finishing),
+  ];
+}
+
+export function calcStagesProgressPercent(stages: StageRow[]): number {
+  const totalIssued = stages.reduce((sum, stage) => sum + stage.issued, 0);
+  const totalDone = stages.reduce((sum, stage) => sum + stage.done, 0);
+  if (totalIssued === 0) return 0;
+  return Math.round((totalDone / totalIssued) * 100);
 }
 
 export function POProductionProgress({

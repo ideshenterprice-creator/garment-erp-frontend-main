@@ -1,5 +1,13 @@
-﻿import { NewPOForm } from "@/components/modules/purchase-orders/NewPOForm";
+﻿"use client";
+
+import { Suspense } from "react";
+import { NewPOForm } from "@/components/modules/purchase-orders/NewPOForm";
+import { TableSkeleton } from "@/components/common/LoadingSpinner";
 
 export default function NewPurchaseOrderPage() {
-  return <NewPOForm />;
+  return (
+    <Suspense fallback={<TableSkeleton rows={6} />}>
+      <NewPOForm />
+    </Suspense>
+  );
 }

@@ -1,11 +1,9 @@
+"use client";
+
+import { useParams } from "next/navigation";
 import { PODetailPage } from "@/components/modules/purchase-orders/PODetailPage";
 
-interface PurchaseOrderDetailRouteProps {
-  params: { id: string };
-}
-
-export default function PurchaseOrderDetailRoute({
-  params,
-}: PurchaseOrderDetailRouteProps) {
+export default function PurchaseOrderDetailRoute() {
+  const params = useParams<{ id: string }>();
   return <PODetailPage poId={params.id} />;
 }

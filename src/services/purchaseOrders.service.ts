@@ -1,14 +1,41 @@
 import api from "@/lib/axios";
 import type { ApiResponse, PaginatedResponse } from "@/types/api";
-import type { PurchaseOrder } from "@/types";
+import type {
+  CreatePurchaseOrderPayload,
+  POFabricLot,
+  POListSummary,
+  POProductionStages,
+  PurchaseOrder,
+} from "@/types";
 import type { ListParams } from "@/services/masters.service";
+
+export type POListResponse = PaginatedResponse<PurchaseOrder> & {
+  summary: POListSummary;
+};
+
+export interface POProductionStatusResponse {
+  poId: string;
+  poNumber: string;
+  status: PurchaseOrder["status"];
+  totalPieces: number;
+  stages: POProductionStages;
+}
+
+export interface POFabricLotsResponse {
+  poId: string;
+  poNumber: string;
+  totalFabricRequired: number;
+  lots: POFabricLot[];
+  totalFabricReceived: number;
+}
 
 export async function getPurchaseOrders(
   params?: ListParams
-): Promise<ApiResponse<PaginatedResponse<PurchaseOrder>>> {
-  const response = await api.get<
-    ApiResponse<PaginatedResponse<PurchaseOrder>>
-  >("/purchase-orders", { params });
+): Promise<ApiResponse<POListResponse>> {
+  const response = await api.get<ApiResponse<POListResponse>>(
+    "/purchase-orders",
+    { params }
+  );
   return response.data;
 }
 
@@ -22,7 +49,7 @@ export async function getPurchaseOrderById(
 }
 
 export async function createPurchaseOrder(
-  data: Partial<PurchaseOrder>
+  data: CreatePurchaseOrderPayload
 ): Promise<ApiResponse<PurchaseOrder>> {
   const response = await api.post<ApiResponse<PurchaseOrder>>(
     "/purchase-orders",
@@ -33,7 +60,7 @@ export async function createPurchaseOrder(
 
 export async function updatePurchaseOrder(
   id: string,
-  data: Partial<PurchaseOrder>
+  data: Partial<CreatePurchaseOrderPayload>
 ): Promise<ApiResponse<PurchaseOrder>> {
   const response = await api.put<ApiResponse<PurchaseOrder>>(
     `/purchase-orders/${id}`,
@@ -55,8 +82,8 @@ export async function cancelPurchaseOrder(
 
 export async function getPOProductionStatus(
   id: string
-): Promise<ApiResponse<unknown>> {
-  const response = await api.get<ApiResponse<unknown>>(
+): Promise<ApiResponse<POProductionStatusResponse>> {
+  const response = await api.get<ApiResponse<POProductionStatusResponse>>(
     `/purchase-orders/${id}/production-status`
   );
   return response.data;
@@ -64,8 +91,8 @@ export async function getPOProductionStatus(
 
 export async function getPOFabricLots(
   id: string
-): Promise<ApiResponse<unknown>> {
-  const response = await api.get<ApiResponse<unknown>>(
+): Promise<ApiResponse<POFabricLotsResponse>> {
+  const response = await api.get<ApiResponse<POFabricLotsResponse>>(
     `/purchase-orders/${id}/fabric-lots`
   );
   return response.data;

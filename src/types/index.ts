@@ -79,13 +79,13 @@ export interface Party {
   partyNumber: string;
   name: string;
   type: PartyType;
-  contact: string;
-  gstNumber: string;
-  city: string;
-  country: string;
-  bankAccount: string;
-  ifsc: string;
-  bankName: string;
+  contact: string | null;
+  gstNumber: string | null;
+  city: string | null;
+  country: string | null;
+  bankAccount: string | null;
+  ifsc: string | null;
+  bankName: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -135,14 +135,98 @@ export interface KarigarOperation {
   operation: Operation;
 }
 
+/** Backend flattens join rows to operation objects on list/detail responses. */
+export type KarigarAssignedOperation = Pick<
+  Operation,
+  "id" | "operationCode" | "name" | "stage" | "ratePerPiece"
+>;
+
+export interface KarigarPartySummary {
+  id: string;
+  partyNumber: string;
+  name: string;
+  contact: string | null;
+  type: PartyType;
+  city: string | null;
+  country?: string | null;
+}
+
 export interface KarigarProfile {
   id: string;
   partyId: string;
-  party: Party;
+  party: KarigarPartySummary;
   paymentType: KarigarPaymentType;
-  weeklySalary: number;
+  weeklySalary: number | null;
   isActive: boolean;
-  operations: KarigarOperation[];
+  operations: KarigarAssignedOperation[];
+}
+
+export interface CreatePartyPayload {
+  name: string;
+  type: PartyType;
+  contact?: string;
+  gstNumber?: string;
+  city?: string;
+  country?: string;
+  bankAccount?: string;
+  ifsc?: string;
+  bankName?: string;
+}
+
+export interface CreateProductPayload {
+  name: string;
+  category: ProductCategory;
+  unit: ProductUnit;
+  gstRate: number;
+  description?: string;
+  sizes?: SizeLabel[];
+}
+
+export interface CreateOperationPayload {
+  name: string;
+  stage: OperationStage;
+  ratePerPiece: number;
+  unit?: string;
+}
+
+export interface CreateGSTPayload {
+  category: string;
+  gstPercent: number;
+  taxType: TaxType;
+  applicableOn: string;
+  notes?: string;
+}
+
+export interface CreateKarigarPayload {
+  partyId: string;
+  paymentType: KarigarPaymentType;
+  weeklySalary?: number;
+  operationIds?: string[];
+}
+
+export interface AccountStatementTransaction {
+  date: string;
+  description: string;
+  referenceType: string;
+  referenceId: string;
+  refNumber: string;
+  debit: number;
+  credit: number;
+  balance: number;
+}
+
+export interface AccountStatement {
+  party: { id: string; name: string; type: PartyType };
+  period: { from: string; to: string };
+  summary: {
+    totalBilled: number;
+    totalReceived: number;
+    outstanding: number;
+    lastTransactionDate: string | null;
+  };
+  transactions: AccountStatementTransaction[];
+  closingBalance: number;
+  balanceType: "RECEIVABLE" | "PAYABLE";
 }
 
 export interface POItem {
@@ -164,33 +248,140 @@ export interface PurchaseOrder {
   id: string;
   poNumber: string;
   buyerId: string;
-  buyer: Party;
+  buyer: Pick<
+    Party,
+    "id" | "partyNumber" | "name" | "city" | "country" | "type"
+  >;
   buyerPoReference: string;
   orderDate: string;
   deliveryDate: string;
   shippingDestination: string;
   paymentTerms: string;
-  specialInstructions: string;
+  specialInstructions: string | null;
   status: PurchaseOrderStatus;
   totalPieces: number;
   totalDesigns: number;
   items?: POItem[];
+  productionProgress?: POProductionStages;
+  fabricLots?: POFabricLot[];
   createdAt: string;
   updatedAt: string;
+}
+
+export type POStageProgressStatus = "DONE" | "IN_PROGRESS" | "PENDING";
+
+export interface POStageProgress {
+  issued: number;
+  completed: number;
+  pending: number;
+  status: POStageProgressStatus;
+}
+
+export interface POProductionStages {
+  cutting: POStageProgress;
+  printing: POStageProgress;
+  coloring: POStageProgress;
+  stitching: POStageProgress;
+  finishing: POStageProgress;
+}
+
+export interface POFabricLot {
+  lotNumber: number;
+  billId: string;
+  billNumber: string;
+  supplier: { id: string; name: string };
+  date: string;
+  netWeight: number;
+  status: PurchaseBillStatus;
+  ratePerKg?: number;
+  totalAmount?: number;
+}
+
+export interface CreatePOItemPayload {
+  designNumber: string;
+  garmentType: string;
+  color: string;
+  qty_0_3M: number;
+  qty_3_6M: number;
+  qty_6_9M: number;
+  qty_9_12M: number;
+  qty_12_18M: number;
+  qty_18_24M: number;
+}
+
+export interface CreatePurchaseOrderPayload {
+  buyerId: string;
+  buyerPoReference: string;
+  orderDate: string;
+  deliveryDate: string;
+  shippingDestination: string;
+  paymentTerms: string;
+  specialInstructions?: string;
+  items: CreatePOItemPayload[];
+}
+
+export interface POListSummary {
+  totalActive: number;
+  totalInProduction: number;
+  totalReadyToShip: number;
+  totalCompleted: number;
+}
+
+export interface PurchaseBillSupplier {
+  id: string;
+  partyNumber?: string;
+  name: string;
+  city?: string | null;
+  country?: string | null;
+  contact?: string | null;
+  type?: PartyType;
+}
+
+export interface PurchaseBillProduct {
+  id: string;
+  productCode?: string;
+  name: string;
+  category?: ProductCategory;
+  unit?: ProductUnit;
+  gstRate?: number;
+}
+
+export interface PurchaseBillPO {
+  id: string;
+  poNumber: string;
+  status?: PurchaseOrderStatus;
+  buyer?: { id: string; name: string };
+}
+
+export interface SupplierBillPayment {
+  id: string;
+  purchaseBillId: string;
+  supplierId: string;
+  amountPaid: number;
+  paymentDate: string;
+  paymentMode: string;
+  referenceNo: string | null;
+  notes?: string | null;
+}
+
+export interface PurchaseBillStockUpdate {
+  stockUpdated: boolean;
+  stockUpdatedAt: string | null;
+  quantityAdded: number;
 }
 
 export interface PurchaseBill {
   id: string;
   billNumber: string;
   supplierId: string;
-  supplier: Party;
-  supplierInvoiceNo: string;
+  supplier: PurchaseBillSupplier;
+  supplierInvoiceNo: string | null;
   purchaseDate: string;
-  poId: string;
-  po: PurchaseOrder;
+  poId: string | null;
+  po: PurchaseBillPO | null;
   productId: string;
-  product: Product;
-  vehicleNumber: string;
+  product: PurchaseBillProduct;
+  vehicleNumber: string | null;
   grossWeight: number;
   tareWeight: number;
   netWeight: number;
@@ -201,6 +392,65 @@ export interface PurchaseBill {
   status: PurchaseBillStatus;
   confirmedAt: string | null;
   createdAt: string;
+  updatedAt?: string;
+  stockUpdate?: PurchaseBillStockUpdate;
+  paymentHistory?: SupplierBillPayment[];
+  totalPaid?: number;
+  outstanding?: number;
+}
+
+export interface CreatePurchaseBillPayload {
+  supplierId: string;
+  supplierInvoiceNo: string;
+  purchaseDate: string;
+  poId: string;
+  productId: string;
+  vehicleNumber?: string;
+  grossWeight: number;
+  tareWeight: number;
+  ratePerKg: number;
+}
+
+export interface PurchaseBillsSummary {
+  totalBillsThisMonth: number;
+  totalFabricPurchasedKg: number;
+  pendingApprovalCount: number;
+}
+
+export interface PurchaseRegisterRow {
+  billNumber: string;
+  date: string;
+  supplier: { id: string; name: string };
+  fabricType: { id: string; name: string; productCode?: string };
+  qty: number;
+  rate: number;
+  total: number;
+  gst: number;
+  netTotal: number;
+  paymentStatus: "PAID" | "PARTIAL" | "UNPAID";
+  outstanding: number;
+  status: PurchaseBillStatus;
+}
+
+export interface PurchaseRegisterResponse {
+  filters: {
+    from: string;
+    to: string;
+    supplierId: string | null;
+    fabricType: string | null;
+  };
+  summary: {
+    totalPurchases: number;
+    totalFabricReceived: number;
+    pendingPayments: number;
+  };
+  bills: PurchaseRegisterRow[];
+  totals: {
+    totalQty: number;
+    totalAmount: number;
+    totalGST: number;
+    totalNetTotal: number;
+  };
 }
 
 export interface Stock {

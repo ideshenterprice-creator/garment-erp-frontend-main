@@ -10,25 +10,33 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { mockFabricProducts, mockSuppliers } from "@/mock/purchase";
+import type { Party, Product } from "@/types";
 
 export interface RegisterFilters {
-  fromDate: string;
-  toDate: string;
+  from: string;
+  to: string;
   supplierId: string;
-  fabricId: string;
+  fabricType: string;
 }
 
 interface RegisterFilterBarProps {
   filters: RegisterFilters;
   onChange: (filters: RegisterFilters) => void;
   onApply: () => void;
+  suppliers: Party[];
+  products: Product[];
+  suppliersLoading?: boolean;
+  productsLoading?: boolean;
 }
 
 export function RegisterFilterBar({
   filters,
   onChange,
   onApply,
+  suppliers,
+  products,
+  suppliersLoading = false,
+  productsLoading = false,
 }: RegisterFilterBarProps) {
   return (
     <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
@@ -39,9 +47,9 @@ export function RegisterFilterBar({
           </Label>
           <Input
             type="date"
-            value={filters.fromDate}
+            value={filters.from}
             onChange={(event) =>
-              onChange({ ...filters, fromDate: event.target.value })
+              onChange({ ...filters, from: event.target.value })
             }
           />
         </div>
@@ -51,9 +59,9 @@ export function RegisterFilterBar({
           </Label>
           <Input
             type="date"
-            value={filters.toDate}
+            value={filters.to}
             onChange={(event) =>
-              onChange({ ...filters, toDate: event.target.value })
+              onChange({ ...filters, to: event.target.value })
             }
           />
         </div>
@@ -66,13 +74,18 @@ export function RegisterFilterBar({
             onValueChange={(value) =>
               onChange({ ...filters, supplierId: value })
             }
+            disabled={suppliersLoading}
           >
             <SelectTrigger>
-              <SelectValue placeholder="All suppliers" />
+              <SelectValue
+                placeholder={
+                  suppliersLoading ? "Loading..." : "All suppliers"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All Suppliers</SelectItem>
-              {mockSuppliers.map((supplier) => (
+              {suppliers.map((supplier) => (
                 <SelectItem key={supplier.id} value={supplier.id}>
                   {supplier.name}
                 </SelectItem>
@@ -85,15 +98,20 @@ export function RegisterFilterBar({
             Fabric Type
           </Label>
           <Select
-            value={filters.fabricId}
-            onValueChange={(value) => onChange({ ...filters, fabricId: value })}
+            value={filters.fabricType}
+            onValueChange={(value) =>
+              onChange({ ...filters, fabricType: value })
+            }
+            disabled={productsLoading}
           >
             <SelectTrigger>
-              <SelectValue placeholder="All fabrics" />
+              <SelectValue
+                placeholder={productsLoading ? "Loading..." : "All fabrics"}
+              />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All Fabrics</SelectItem>
-              {mockFabricProducts.map((product) => (
+              {products.map((product) => (
                 <SelectItem key={product.id} value={product.id}>
                   {product.name}
                 </SelectItem>

@@ -1,14 +1,24 @@
 import api from "@/lib/axios";
 import type { ApiResponse, PaginatedResponse } from "@/types/api";
-import type { PurchaseBill } from "@/types";
+import type {
+  CreatePurchaseBillPayload,
+  PurchaseBill,
+  PurchaseBillsSummary,
+  PurchaseRegisterResponse,
+} from "@/types";
 import type { ListParams } from "@/services/masters.service";
+
+export type PurchaseBillsListResponse = PaginatedResponse<PurchaseBill> & {
+  summary: PurchaseBillsSummary;
+};
 
 export async function getPurchaseBills(
   params?: ListParams
-): Promise<ApiResponse<PaginatedResponse<PurchaseBill>>> {
-  const response = await api.get<
-    ApiResponse<PaginatedResponse<PurchaseBill>>
-  >("/purchase/bills", { params });
+): Promise<ApiResponse<PurchaseBillsListResponse>> {
+  const response = await api.get<ApiResponse<PurchaseBillsListResponse>>(
+    "/purchase/bills",
+    { params }
+  );
   return response.data;
 }
 
@@ -22,7 +32,7 @@ export async function getPurchaseBillById(
 }
 
 export async function createPurchaseBill(
-  data: Partial<PurchaseBill>
+  data: CreatePurchaseBillPayload
 ): Promise<ApiResponse<PurchaseBill>> {
   const response = await api.post<ApiResponse<PurchaseBill>>(
     "/purchase/bills",
@@ -53,9 +63,10 @@ export async function returnPurchaseBill(
 
 export async function getPurchaseRegister(
   params?: ListParams
-): Promise<ApiResponse<unknown>> {
-  const response = await api.get<ApiResponse<unknown>>("/purchase/register", {
-    params,
-  });
+): Promise<ApiResponse<PurchaseRegisterResponse>> {
+  const response = await api.get<ApiResponse<PurchaseRegisterResponse>>(
+    "/purchase/register",
+    { params }
+  );
   return response.data;
 }

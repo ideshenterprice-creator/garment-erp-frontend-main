@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,11 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { usePOStore } from "@/store/poStore";
 
 interface CancelPODialogProps {
   open: boolean;
   poNumber?: string;
+  isPending?: boolean;
   onClose: () => void;
   onConfirm: (reason: string) => void;
 }
@@ -24,26 +24,31 @@ interface CancelPODialogProps {
 export function CancelPODialog({
   open,
   poNumber,
+  isPending = false,
   onClose,
   onConfirm,
 }: CancelPODialogProps) {
-  const cancelReason = usePOStore((state) => state.cancelReason);
-  const setCancelReason = usePOStore((state) => state.setCancelReason);
+  const [reason, setReason] = useState("");
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    if (!open) {
+      setReason("");
+      setError("");
+    }
+  }, [open]);
+
   function handleConfirm() {
-    if (!cancelReason.trim()) {
+    if (!reason.trim()) {
       setError("Please provide a cancellation reason");
       return;
     }
-    onConfirm(cancelReason.trim());
-    setCancelReason("");
-    setError("");
-    onClose();
+    onConfirm(reason.trim());
   }
 
   function handleClose() {
-    setCancelReason("");
+    if (isPending) return;
+    setReason("");
     setError("");
     onClose();
   }
@@ -67,20 +72,31 @@ export function CancelPODialog({
             id="cancel-reason"
             rows={3}
             placeholder="Enter cancellation reason..."
-            value={cancelReason}
+            value={reason}
+            disabled={isPending}
             onChange={(event) => {
-              setCancelReason(event.target.value);
+              setReason(event.target.value);
               if (error) setError("");
             }}
           />
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </div>
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button type="button" variant="outline" onClick={handleClose}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleClose}
+            disabled={isPending}
+          >
             Keep PO
           </Button>
-          <Button type="button" variant="destructive" onClick={handleConfirm}>
-            Confirm Cancel
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleConfirm}
+            disabled={isPending}
+          >
+            {isPending ? "Cancelling..." : "Confirm Cancel"}
           </Button>
         </DialogFooter>
       </DialogContent>

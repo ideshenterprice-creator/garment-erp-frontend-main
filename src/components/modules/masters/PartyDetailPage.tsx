@@ -1,26 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Ban,
   Building2,
   Clock3,
-  Eye,
   Info,
   Pencil,
-  Trash2,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { toast } from "sonner";
 import type { Party } from "@/types";
-import {
-  mockPartyTransactions,
-  type PartyTransaction,
-} from "@/mock/masters";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { PartyDrawer } from "@/components/modules/masters/PartyDrawer";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,29 +28,56 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/routes";
+import { QUERY_KEYS } from "@/constants/queryKeys";
 import { formatCurrency } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { togglePartyStatus } from "@/services/masters.service";
+import { getAccountStatement } from "@/services/accounts.service";
 
 interface PartyDetailPageProps {
   party: Party;
-  onPartyUpdate: (party: Party) => void;
 }
 
 const PREVIEW_LIMIT = 5;
 
-export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) {
+export function PartyDetailPage({ party }: PartyDetailPageProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [showAll, setShowAll] = useState(false);
-  const [transactions, setTransactions] = useState<PartyTransaction[]>(
-    () => mockPartyTransactions[party.id] ?? []
-  );
-  const [deleteTxn, setDeleteTxn] = useState<PartyTransaction | null>(null);
 
-  const visibleTransactions = useMemo(
-    () => (showAll ? transactions : transactions.slice(0, PREVIEW_LIMIT)),
-    [showAll, transactions]
-  );
+  const from = format(subDays(new Date(), 90), "yyyy-MM-dd");
+  const to = format(new Date(), "yyyy-MM-dd");
+
+  const {
+    data: statementResponse,
+    isLoading: statementLoading,
+  } = useQuery({
+    queryKey: [...QUERY_KEYS.ACCOUNT_STATEMENT, { partyId: party.id, from, to }],
+    queryFn: () =>
+      getAccountStatement({
+        partyId: party.id,
+        from,
+        to,
+      }),
+  });
+
+  const transactions =
+    statementResponse?.data.transactions.slice(-PREVIEW_LIMIT).reverse() ?? [];
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      togglePartyStatus(id, isActive),
+    onSuccess: (_, variables) => {
+      const action = variables.isActive ? "activated" : "deactivated";
+      toast.success(`Party ${action}.`);
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
+      setConfirmOpen(false);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to update party status."));
+    },
+  });
 
   function typeLabel(type: Party["type"]) {
     if (type === "BUYER") return "BUYER";
@@ -70,30 +93,6 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
 
   const hasBank =
     Boolean(party.bankAccount) || Boolean(party.ifsc) || Boolean(party.bankName);
-
-  function goToFullLedger() {
-    if (party.type === "BUYER") {
-      router.push(`${ROUTES.ACCOUNTS.STATEMENT}?partyId=${party.id}`);
-      return;
-    }
-    if (party.type === "SUPPLIER") {
-      router.push(ROUTES.PURCHASE.REGISTER);
-      return;
-    }
-    router.push(ROUTES.ACCOUNTS.KARIGAR_PAYMENTS);
-  }
-
-  function viewTransaction(txn: PartyTransaction) {
-    if (txn.transactionId.startsWith("INV-")) {
-      router.push(ROUTES.SALES.BILLS);
-      return;
-    }
-    if (txn.transactionId.startsWith("PO-")) {
-      router.push(ROUTES.PURCHASE_ORDERS.ROOT);
-      return;
-    }
-    goToFullLedger();
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -111,7 +110,6 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold text-slate-900 md:text-[28px]">
                 {party.name}
-                {party.name === "Al Reem" ? " Trading" : ""}
               </h1>
               <StatusBadge
                 label={typeLabel(party.type)}
@@ -119,7 +117,7 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
               />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {party.city}, {party.country} — Added{" "}
+              {party.city || "—"}, {party.country || "—"} — Added{" "}
               {format(new Date(party.createdAt), "dd MMM yyyy")}
             </p>
           </div>
@@ -134,6 +132,7 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
             variant="outline"
             className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
             onClick={() => setConfirmOpen(true)}
+            disabled={toggleStatusMutation.isPending}
           >
             <Ban className="size-4" />
             {party.isActive ? "Deactivate" : "Activate"}
@@ -165,7 +164,7 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
                 Contact Number
               </p>
               <p className="mt-1 text-sm font-medium text-slate-900">
-                {party.contact}
+                {party.contact || "—"}
               </p>
             </div>
             <div>
@@ -173,7 +172,7 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
                 City / Location
               </p>
               <p className="mt-1 text-sm font-medium text-slate-900">
-                {party.city}, {party.country}
+                {party.city || "—"}, {party.country || "—"}
               </p>
             </div>
             <div>
@@ -237,105 +236,83 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
             <Clock3 className="size-4 text-slate-500" />
             <h2 className="font-semibold text-slate-900">Transaction History</h2>
           </div>
-          <div className="flex items-center gap-3">
-            {transactions.length > PREVIEW_LIMIT ? (
-              <button
-                type="button"
-                className="text-sm font-medium text-[#1b3a3a] hover:underline"
-                onClick={() => setShowAll((prev) => !prev)}
-              >
-                {showAll ? "Show less" : "View All Transactions →"}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="text-sm font-medium text-[#1b3a3a] hover:underline"
-                onClick={goToFullLedger}
-              >
-                View All Transactions →
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            className="text-sm font-medium text-[#1b3a3a] hover:underline"
+            onClick={() =>
+              router.push(`${ROUTES.ACCOUNTS.STATEMENT}?partyId=${party.id}`)
+            }
+          >
+            View Full Statement →
+          </button>
         </div>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Transaction ID</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visibleTransactions.length === 0 ? (
+        {statementLoading ? (
+          <TableSkeleton rows={3} />
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="text-center text-muted-foreground"
-                  >
-                    No transactions yet
-                  </TableCell>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Debit</TableHead>
+                  <TableHead>Credit</TableHead>
+                  <TableHead>Balance</TableHead>
                 </TableRow>
-              ) : (
-                visibleTransactions.map((txn) => (
-                  <TableRow key={txn.id}>
-                    <TableCell className="font-medium">
-                      {txn.transactionId}
-                    </TableCell>
-                    <TableCell>{txn.type}</TableCell>
-                    <TableCell>
-                      {format(new Date(txn.date), "dd MMM yyyy")}
-                    </TableCell>
-                    <TableCell>{formatCurrency(txn.amount)}</TableCell>
-                    <TableCell>
-                      <StatusBadge
-                        label={txn.status}
-                        variant={txn.status === "PAID" ? "paid" : "pending"}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-0.5">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          onClick={() => viewTransaction(txn)}
-                        >
-                          <Eye className="size-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 text-red-500 hover:bg-red-50"
-                          onClick={() => setDeleteTxn(txn)}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {transactions.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="text-center text-muted-foreground"
+                    >
+                      No transactions yet
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                ) : (
+                  transactions.map((txn) => (
+                    <TableRow key={`${txn.referenceId}-${txn.date}-${txn.balance}`}>
+                      <TableCell>
+                        {format(new Date(txn.date), "dd MMM yyyy")}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {txn.description}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge
+                          label={txn.referenceType.replaceAll("_", " ")}
+                          variant="pending"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {txn.debit > 0 ? formatCurrency(txn.debit) : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {txn.credit > 0 ? formatCurrency(txn.credit) : "—"}
+                      </TableCell>
+                      <TableCell>{formatCurrency(txn.balance)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
 
       <PartyDrawer
         open={editOpen}
         onClose={() => setEditOpen(false)}
         party={party}
-        onSave={onPartyUpdate}
       />
 
       <ConfirmDialog
         open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
+        onClose={() => {
+          if (!toggleStatusMutation.isPending) setConfirmOpen(false);
+        }}
         title={party.isActive ? "Deactivate party?" : "Activate party?"}
         description={
           party.isActive
@@ -344,25 +321,10 @@ export function PartyDetailPage({ party, onPartyUpdate }: PartyDetailPageProps) 
         }
         confirmLabel={party.isActive ? "Deactivate" : "Activate"}
         onConfirm={() => {
-          onPartyUpdate({ ...party, isActive: !party.isActive });
-          toast.success(
-            party.isActive ? "Party deactivated" : "Party activated"
-          );
-        }}
-      />
-
-      <ConfirmDialog
-        open={Boolean(deleteTxn)}
-        onClose={() => setDeleteTxn(null)}
-        title={`Delete ${deleteTxn?.transactionId ?? "transaction"}?`}
-        description="This removes the transaction from this party history preview."
-        confirmLabel="Delete"
-        onConfirm={() => {
-          if (!deleteTxn) return;
-          setTransactions((prev) =>
-            prev.filter((item) => item.id !== deleteTxn.id)
-          );
-          toast.success("Transaction removed");
+          toggleStatusMutation.mutate({
+            id: party.id,
+            isActive: !party.isActive,
+          });
         }}
       />
     </div>

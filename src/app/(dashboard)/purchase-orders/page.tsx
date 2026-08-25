@@ -1,20 +1,28 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import type { PurchaseOrder, PurchaseOrderStatus } from "@/types";
-import { mockPurchaseOrders } from "@/mock/purchaseOrders";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
 import { POStatCards } from "@/components/modules/purchase-orders/POStatCards";
 import { POTable } from "@/components/modules/purchase-orders/POTable";
 import { CancelPODialog } from "@/components/modules/purchase-orders/CancelPODialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ROUTES } from "@/constants/routes";
-import { usePOStore } from "@/store/poStore";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { useDebounce } from "@/hooks/useDebounce";
+import { getErrorMessage } from "@/lib/errorHandler";
 import { cn } from "@/lib/utils";
+import {
+  cancelPurchaseOrder,
+  getPurchaseOrders,
+} from "@/services/purchaseOrders.service";
 
 type POFilter = "ALL" | PurchaseOrderStatus;
 
@@ -31,26 +39,58 @@ const filterTabs: { label: string; value: POFilter }[] = [
 
 export default function PurchaseOrdersPage() {
   const router = useRouter();
-  const setSelectedPO = usePOStore((state) => state.setSelectedPO);
-  const [loading, setLoading] = useState(true);
-  const [orders, setOrders] = useState(mockPurchaseOrders);
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<POFilter>("ALL");
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 500);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<PurchaseOrder | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
+  const filters = {
+    status: filter === "ALL" ? undefined : filter,
+    search: debouncedSearch || undefined,
+    page,
+    limit: PAGE_SIZE,
+  };
 
-  const filtered = useMemo(() => {
-    if (filter === "ALL") return orders;
-    return orders.filter((order) => order.status === filter);
-  }, [orders, filter]);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, filters],
+    queryFn: () => getPurchaseOrders(filters),
+  });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const summaryQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, "summary", { limit: 1 }],
+    queryFn: () => getPurchaseOrders({ limit: 1 }),
+  });
+
+  const orders = data?.data.data ?? [];
+  const total = data?.data.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const summary = summaryQuery.data?.data.summary;
+  const filtersActive = filter !== "ALL" || Boolean(debouncedSearch);
+
+  const cancelMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      cancelPurchaseOrder(id, reason),
+    onSuccess: () => {
+      toast.success("Purchase order cancelled.");
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.PURCHASE_ORDERS,
+      });
+      setCancelOpen(false);
+      setCancelTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to cancel PO."));
+    },
+  });
+
+  function clearFilters() {
+    setFilter("ALL");
+    setSearch("");
+    setPage(1);
+  }
 
   return (
     <div>
@@ -67,59 +107,98 @@ export default function PurchaseOrdersPage() {
       />
 
       <POStatCards
-        activePOs={8}
-        totalPieces={42500}
-        inProduction={5}
-        readyToShip={2}
+        totalActive={summary?.totalActive ?? 0}
+        totalInProduction={summary?.totalInProduction ?? 0}
+        totalReadyToShip={summary?.totalReadyToShip ?? 0}
+        totalCompleted={summary?.totalCompleted ?? 0}
       />
 
-      <div className="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200">
-        {filterTabs.map((tab) => (
-          <button
-            key={tab.value}
-            type="button"
-            onClick={() => {
-              setFilter(tab.value);
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
+          {filterTabs.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => {
+                setFilter(tab.value);
+                setPage(1);
+              }}
+              className={cn(
+                "whitespace-nowrap px-3 py-2.5 text-sm font-medium transition-colors",
+                filter === tab.value
+                  ? "border-b-2 border-slate-900 text-slate-900"
+                  : "text-slate-500 hover:text-slate-800"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="relative w-full sm:w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
               setPage(1);
             }}
-            className={cn(
-              "whitespace-nowrap px-3 py-2.5 text-sm font-medium transition-colors",
-              filter === tab.value
-                ? "border-b-2 border-slate-900 text-slate-900"
-                : "text-slate-500 hover:text-slate-800"
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
+            placeholder="Search PO number..."
+            className="pl-9"
+          />
+        </div>
       </div>
 
-      {loading ? (
-        <TableSkeleton />
+      {isLoading ? (
+        <TableSkeleton rows={5} />
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
+          <p className="text-sm font-medium text-slate-900">
+            Could not load purchase orders
+          </p>
+          <Button type="button" variant="outline" onClick={() => void refetch()}>
+            Try Again
+          </Button>
+        </div>
       ) : (
         <>
           <POTable
-            orders={pageItems}
+            orders={orders}
             onRowClick={(order) =>
               router.push(ROUTES.PURCHASE_ORDERS.DETAIL(order.id))
             }
-            onEdit={(order) =>
-              router.push(`${ROUTES.PURCHASE_ORDERS.DETAIL(order.id)}?edit=1`)
+            onView={(order) =>
+              router.push(ROUTES.PURCHASE_ORDERS.DETAIL(order.id))
             }
             onCancel={(order) => {
-              setSelectedPO(order.id);
               setCancelTarget(order);
               setCancelOpen(true);
             }}
             onAdd={() => router.push(ROUTES.PURCHASE_ORDERS.NEW)}
+            emptyTitle={
+              filtersActive
+                ? "No purchase orders match your filters"
+                : "No purchase orders yet"
+            }
+            emptyDescription={
+              filtersActive
+                ? "Try clearing filters or adjusting your search."
+                : "Create your first purchase order to get started."
+            }
+            emptyActionLabel="+ New PO"
+            emptyActionIsClear={filtersActive}
+            onEmptyAction={
+              filtersActive
+                ? clearFilters
+                : () => router.push(ROUTES.PURCHASE_ORDERS.NEW)
+            }
           />
           <Pagination
             page={page}
             totalPages={totalPages}
-            totalItems={filtered.length}
+            totalItems={total}
             pageSize={PAGE_SIZE}
             onPageChange={setPage}
-            label="Purchase Orders"
+            label="orders"
           />
         </>
       )}
@@ -127,20 +206,16 @@ export default function PurchaseOrdersPage() {
       <CancelPODialog
         open={cancelOpen}
         poNumber={cancelTarget?.poNumber}
+        isPending={cancelMutation.isPending}
         onClose={() => {
-          setCancelOpen(false);
-          setCancelTarget(null);
+          if (!cancelMutation.isPending) {
+            setCancelOpen(false);
+            setCancelTarget(null);
+          }
         }}
-        onConfirm={() => {
+        onConfirm={(reason) => {
           if (!cancelTarget) return;
-          setOrders((prev) =>
-            prev.map((order) =>
-              order.id === cancelTarget.id
-                ? { ...order, status: "CANCELLED" as const }
-                : order
-            )
-          );
-          toast.success(`${cancelTarget.poNumber} cancelled`);
+          cancelMutation.mutate({ id: cancelTarget.id, reason });
         }}
       />
     </div>

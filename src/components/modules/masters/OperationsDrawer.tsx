@@ -4,10 +4,10 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import type { OperationStage } from "@/types";
-import type { MockOperation } from "@/mock/masters";
+import type { CreateOperationPayload, Operation } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { createOperation, updateOperation } from "@/services/masters.service";
 
 const operationSchema = z.object({
   name: z.string().min(1, "Operation name is required"),
@@ -32,8 +35,7 @@ type OperationFormValues = z.infer<typeof operationSchema>;
 interface OperationsDrawerProps {
   open: boolean;
   onClose: () => void;
-  operation?: MockOperation | null;
-  onSave: (operation: MockOperation) => void;
+  operation?: Operation | null;
 }
 
 const defaultValues: OperationFormValues = {
@@ -47,9 +49,9 @@ export function OperationsDrawer({
   open,
   onClose,
   operation,
-  onSave,
 }: OperationsDrawerProps) {
   const isEdit = Boolean(operation);
+  const queryClient = useQueryClient();
 
   const {
     register,
@@ -57,7 +59,7 @@ export function OperationsDrawer({
     reset,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<OperationFormValues>({
     resolver: zodResolver(operationSchema),
     defaultValues,
@@ -71,32 +73,73 @@ export function OperationsDrawer({
       reset({
         name: operation.name,
         stage: operation.stage,
-        ratePerPiece: operation.ratePerPiece,
-        unit: operation.unit,
+        ratePerPiece: Number(operation.ratePerPiece),
+        unit: operation.unit || "PCS",
       });
     } else {
       reset(defaultValues);
     }
   }, [open, operation, reset]);
 
+  const addOperationMutation = useMutation({
+    mutationFn: (data: CreateOperationPayload) => createOperation(data),
+    onSuccess: () => {
+      toast.success("Operation added.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.OPERATIONS });
+      onClose();
+      reset(defaultValues);
+    },
+    onError: (error) => {
+      const message = getErrorMessage(error, "Failed to add operation.");
+      if (
+        message.toLowerCase().includes("already exists") ||
+        message.toLowerCase().includes("unique")
+      ) {
+        toast.error("An operation with this name already exists.");
+        return;
+      }
+      toast.error(message);
+    },
+  });
+
+  const editOperationMutation = useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<CreateOperationPayload>;
+    }) => updateOperation(id, data),
+    onSuccess: (response) => {
+      toast.success(
+        response.data.note ??
+          response.message ??
+          "Operation updated."
+      );
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.OPERATIONS });
+      onClose();
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to update operation."));
+    },
+  });
+
+  const isPending =
+    addOperationMutation.isPending || editOperationMutation.isPending;
+
   function onSubmit(values: OperationFormValues) {
-    const next: MockOperation = {
-      id: operation?.id ?? `op-${Date.now()}`,
-      operationCode:
-        operation?.operationCode ?? `OP-${Date.now().toString().slice(-4)}`,
+    const payload: CreateOperationPayload = {
       name: values.name,
-      stage: values.stage as OperationStage,
+      stage: values.stage,
       ratePerPiece: values.ratePerPiece,
       unit: values.unit,
-      isActive: operation?.isActive ?? true,
-      lastUpdated: new Date().toISOString(),
     };
 
-    onSave(next);
-    toast.success(
-      isEdit ? "Operation updated successfully" : "Operation saved successfully"
-    );
-    onClose();
+    if (isEdit && operation) {
+      editOperationMutation.mutate({ id: operation.id, data: payload });
+      return;
+    }
+    addOperationMutation.mutate(payload);
   }
 
   return (
@@ -107,16 +150,20 @@ export function OperationsDrawer({
       description="Define production stage and piece rate."
       footer={
         <div className="flex items-center justify-end gap-3">
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
           <Button
             type="submit"
             form="operation-form"
-            disabled={isSubmitting}
+            disabled={isPending}
             className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
           >
-            {isEdit ? "Update Operation" : "Save Operation"}
+            {isPending
+              ? "Saving..."
+              : isEdit
+                ? "Update Operation"
+                : "Save Operation"}
           </Button>
         </div>
       }

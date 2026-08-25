@@ -1,7 +1,7 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
-import type { MockGSTRate } from "@/mock/masters";
+import { Pencil } from "lucide-react";
+import type { GSTRate } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
@@ -15,25 +15,24 @@ import {
 } from "@/components/ui/table";
 
 interface GSTTableProps {
-  rates: MockGSTRate[];
-  onEdit: (rate: MockGSTRate) => void;
-  onDelete: (rate: MockGSTRate) => void;
+  rates: GSTRate[];
+  onEdit: (rate: GSTRate) => void;
   onAdd?: () => void;
 }
 
-function taxLabel(type: MockGSTRate["taxType"]) {
+function taxLabel(type: GSTRate["taxType"]) {
   if (type === "ZERO_RATED") return "Zero Rated";
   if (type === "IGST") return "IGST";
   return "CGST + SGST";
 }
 
-function taxVariant(type: MockGSTRate["taxType"]) {
+function taxVariant(type: GSTRate["taxType"]) {
   if (type === "ZERO_RATED") return "zero_rated" as const;
   if (type === "IGST") return "igst" as const;
   return "cgst_sgst" as const;
 }
 
-export function GSTTable({ rates, onEdit, onDelete, onAdd }: GSTTableProps) {
+export function GSTTable({ rates, onEdit, onAdd }: GSTTableProps) {
   if (rates.length === 0) {
     return (
       <EmptyState
@@ -74,7 +73,7 @@ export function GSTTable({ rates, onEdit, onDelete, onAdd }: GSTTableProps) {
                 <TableCell className="font-semibold text-slate-900">
                   {rate.category}
                 </TableCell>
-                <TableCell>{rate.gstPercent}%</TableCell>
+                <TableCell>{Number(rate.gstPercent)}%</TableCell>
                 <TableCell>
                   <StatusBadge
                     label={taxLabel(rate.taxType)}
@@ -83,26 +82,15 @@ export function GSTTable({ rates, onEdit, onDelete, onAdd }: GSTTableProps) {
                 </TableCell>
                 <TableCell className="text-slate-600">{rate.applicableOn}</TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-0.5">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8"
-                      onClick={() => onEdit(rate)}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-red-500 hover:bg-red-50"
-                      onClick={() => onDelete(rate)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    onClick={() => onEdit(rate)}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}

@@ -1,17 +1,11 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  AlertTriangle,
-  Ban,
-  CheckCircle2,
-  Package,
-  Plus,
-  Recycle,
-} from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Package, Plus, Recycle, Search, Shirt, Wrench } from "lucide-react";
 import { toast } from "sonner";
-import { mockProducts, type MockProduct } from "@/mock/masters";
+import type { Product } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { FilterBar } from "@/components/common/FilterBar";
@@ -20,7 +14,16 @@ import { Pagination } from "@/components/common/Pagination";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { ProductTable } from "@/components/modules/masters/ProductTable";
 import { ProductDrawer } from "@/components/modules/masters/ProductDrawer";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ROUTES } from "@/constants/routes";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { useDebounce } from "@/hooks/useDebounce";
+import { getErrorMessage } from "@/lib/errorHandler";
+import {
+  getProducts,
+  toggleProductStatus,
+} from "@/services/masters.service";
 
 type ProductFilter =
   | "ALL"
@@ -33,37 +36,69 @@ const PAGE_SIZE = 10;
 
 export default function ProductMasterPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState<MockProduct[]>(mockProducts);
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<ProductFilter>("ALL");
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 500);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editing, setEditing] = useState<MockProduct | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<MockProduct | null>(null);
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [statusTarget, setStatusTarget] = useState<Product | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
+  const filters = {
+    category: filter === "ALL" ? undefined : filter,
+    page,
+    limit: PAGE_SIZE,
+    search: debouncedSearch || undefined,
+  };
 
-  const filtered = useMemo(() => {
-    if (filter === "ALL") return products;
-    return products.filter((product) => product.category === filter);
-  }, [products, filter]);
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: [...QUERY_KEYS.PRODUCTS, filters],
+    queryFn: () => getProducts(filters),
+  });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const rawCount = useQuery({
+    queryKey: [...QUERY_KEYS.PRODUCTS, { category: "RAW_MATERIAL", limit: 1 }],
+    queryFn: () => getProducts({ category: "RAW_MATERIAL", limit: 1 }),
+  });
+  const finishedCount = useQuery({
+    queryKey: [...QUERY_KEYS.PRODUCTS, { category: "FINISHED_GOOD", limit: 1 }],
+    queryFn: () => getProducts({ category: "FINISHED_GOOD", limit: 1 }),
+  });
+  const accessoryCount = useQuery({
+    queryKey: [...QUERY_KEYS.PRODUCTS, { category: "ACCESSORY", limit: 1 }],
+    queryFn: () => getProducts({ category: "ACCESSORY", limit: 1 }),
+  });
+  const wastageCount = useQuery({
+    queryKey: [...QUERY_KEYS.PRODUCTS, { category: "WASTAGE", limit: 1 }],
+    queryFn: () => getProducts({ category: "WASTAGE", limit: 1 }),
+  });
 
-  const stats = useMemo(
-    () => ({
-      total: products.length,
-      active: products.filter((p) => p.displayStatus === "ACTIVE").length,
-      discontinued: products.filter((p) => p.displayStatus === "DISCONTINUED")
-        .length,
-      wastage: products.filter((p) => p.category === "WASTAGE").length,
-    }),
-    [products]
-  );
+  const products = data?.data.data ?? [];
+  const total = data?.data.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const filtersActive = filter !== "ALL" || Boolean(debouncedSearch);
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      toggleProductStatus(id, isActive),
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.isActive ? "Product activated." : "Product deactivated."
+      );
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRODUCTS });
+      setStatusTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to update product status."));
+    },
+  });
+
+  function clearFilters() {
+    setFilter("ALL");
+    setSearch("");
+    setPage(1);
+  }
 
   return (
     <div>
@@ -84,26 +119,26 @@ export default function ProductMasterPage() {
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Total SKUs"
-          value={stats.total}
+          label="Raw Material"
+          value={rawCount.data?.data.total ?? 0}
           accent="teal"
           icon={<Package className="size-5" />}
         />
         <StatCard
-          label="Active Products"
-          value={stats.active}
+          label="Finished Goods"
+          value={finishedCount.data?.data.total ?? 0}
           accent="blue"
-          icon={<CheckCircle2 className="size-5" />}
+          icon={<Shirt className="size-5" />}
         />
         <StatCard
-          label="Discontinued"
-          value={stats.discontinued}
+          label="Accessories"
+          value={accessoryCount.data?.data.total ?? 0}
           accent="orange"
-          icon={<Ban className="size-5" />}
+          icon={<Wrench className="size-5" />}
         />
         <StatCard
-          label="Wastage Items"
-          value={stats.wastage}
+          label="Wastage"
+          value={wastageCount.data?.data.total ?? 0}
           accent="gray"
           icon={<Recycle className="size-5" />}
         />
@@ -122,14 +157,37 @@ export default function ProductMasterPage() {
           setFilter(value as ProductFilter);
           setPage(1);
         }}
+        extraActions={
+          <div className="relative w-full sm:w-64">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Search products..."
+              className="pl-9"
+            />
+          </div>
+        }
       />
 
-      {loading ? (
-        <TableSkeleton />
+      {isLoading ? (
+        <TableSkeleton rows={5} />
+      ) : isError ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
+          <p className="text-sm font-medium text-slate-900">
+            Could not load products
+          </p>
+          <Button type="button" variant="outline" onClick={() => void refetch()}>
+            Try Again
+          </Button>
+        </div>
       ) : (
         <>
           <ProductTable
-            products={pageItems}
+            products={products}
             onRowClick={(product) =>
               router.push(ROUTES.MASTERS.PRODUCT_DETAIL(product.id))
             }
@@ -137,29 +195,42 @@ export default function ProductMasterPage() {
               setEditing(product);
               setDrawerOpen(true);
             }}
-            onDelete={setDeleteTarget}
+            onToggleStatus={setStatusTarget}
             onAdd={() => {
               setEditing(null);
               setDrawerOpen(true);
             }}
+            emptyTitle={
+              filtersActive
+                ? "No products match your filters"
+                : "No products added yet"
+            }
+            emptyDescription={
+              filtersActive
+                ? "Try clearing filters or adjusting your search."
+                : "Add your first product to the catalog."
+            }
+            emptyActionLabel="+ New Product"
+            emptyActionIsClear={filtersActive}
+            onEmptyAction={
+              filtersActive
+                ? clearFilters
+                : () => {
+                    setEditing(null);
+                    setDrawerOpen(true);
+                  }
+            }
           />
           <Pagination
             page={page}
             totalPages={totalPages}
-            totalItems={filtered.length}
+            totalItems={total}
             pageSize={PAGE_SIZE}
             onPageChange={setPage}
             label="products"
           />
         </>
       )}
-
-      {!loading && products.length === 0 ? (
-        <div className="mt-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          <AlertTriangle className="size-4" />
-          No products in catalog yet.
-        </div>
-      ) : null}
 
       <ProductDrawer
         open={drawerOpen}
@@ -168,32 +239,30 @@ export default function ProductMasterPage() {
           setEditing(null);
         }}
         product={editing}
-        onSave={(product) => {
-          setProducts((prev) => {
-            const exists = prev.some((item) => item.id === product.id);
-            if (exists) {
-              return prev.map((item) =>
-                item.id === product.id ? product : item
-              );
-            }
-            return [product, ...prev];
-          });
-        }}
       />
 
       <ConfirmDialog
-        open={Boolean(deleteTarget)}
-        onClose={() => setDeleteTarget(null)}
-        title={`Delete ${deleteTarget?.name ?? "product"}?`}
-        description="This product will be removed from the catalog."
-        confirmLabel="Delete"
+        open={Boolean(statusTarget)}
+        onClose={() => {
+          if (!toggleStatusMutation.isPending) setStatusTarget(null);
+        }}
+        title={
+          statusTarget?.isActive
+            ? `Deactivate ${statusTarget.name}?`
+            : `Activate ${statusTarget?.name ?? "product"}?`
+        }
+        description={
+          statusTarget?.isActive
+            ? "This product will no longer be available for new transactions."
+            : "This product will become available again."
+        }
+        confirmLabel={statusTarget?.isActive ? "Deactivate" : "Activate"}
         onConfirm={() => {
-          if (!deleteTarget) return;
-          setProducts((prev) =>
-            prev.filter((item) => item.id !== deleteTarget.id)
-          );
-          toast.success(`${deleteTarget.name} deleted`);
-          setPage(1);
+          if (!statusTarget) return;
+          toggleStatusMutation.mutate({
+            id: statusTarget.id,
+            isActive: !statusTarget.isActive,
+          });
         }}
       />
     </div>

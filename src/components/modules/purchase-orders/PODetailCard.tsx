@@ -5,6 +5,8 @@ import { ClipboardList, Info } from "lucide-react";
 import { format } from "date-fns";
 import type { PurchaseOrder } from "@/types";
 import { ROUTES } from "@/constants/routes";
+import { getDeliveryDateClassName } from "@/lib/purchaseOrders";
+import { cn } from "@/lib/utils";
 
 interface PODetailCardProps {
   order: PurchaseOrder;
@@ -39,11 +41,23 @@ export function PODetailCard({ order }: PODetailCardProps) {
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-            Dates
+            Order Date
           </p>
           <p className="mt-1 text-sm font-medium text-slate-900">
-            {format(new Date(order.orderDate), "dd MMM")} -{" "}
-            {format(new Date(order.deliveryDate), "dd MMM")}
+            {format(new Date(order.orderDate), "dd MMM yyyy")}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Delivery Date
+          </p>
+          <p
+            className={cn(
+              "mt-1 text-sm font-medium",
+              getDeliveryDateClassName(order.deliveryDate, order.status)
+            )}
+          >
+            {format(new Date(order.deliveryDate), "dd MMM yyyy")}
           </p>
         </div>
         <div>
@@ -67,7 +81,7 @@ export function PODetailCard({ order }: PODetailCardProps) {
             Total Pieces
           </p>
           <p className="mt-1 text-sm font-medium text-slate-900">
-            {order.totalPieces.toLocaleString("en-IN")}
+            {Number(order.totalPieces).toLocaleString("en-IN")}
           </p>
         </div>
         <div>

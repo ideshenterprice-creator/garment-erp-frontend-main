@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ArrowLeft, Factory, Undo2 } from "lucide-react";
 import { toast } from "sonner";
-import { mockPurchaseBills, type MockPurchaseBill } from "@/mock/purchase";
+import { EmptyState } from "@/components/common/EmptyState";
+import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { BillStatusBadge } from "@/components/modules/purchase/BillStatusBadge";
 import { BillDetailCard } from "@/components/modules/purchase/BillDetailCard";
 import { StockUpdateInfo } from "@/components/modules/purchase/StockUpdateInfo";
@@ -16,6 +18,13 @@ import {
 import { ReturnBillDialog } from "@/components/modules/purchase/ReturnBillDialog";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { getErrorMessage } from "@/lib/errorHandler";
+import {
+  confirmPurchaseBill,
+  getPurchaseBillById,
+  returnPurchaseBill,
+} from "@/services/purchase.service";
 
 interface BillDetailPageProps {
   billId: string;
@@ -23,26 +32,83 @@ interface BillDetailPageProps {
 
 export function BillDetailPage({ billId }: BillDetailPageProps) {
   const router = useRouter();
-  const initial = useMemo(
-    () => mockPurchaseBills.find((bill) => bill.id === billId) ?? null,
-    [billId]
-  );
-  const [bill, setBill] = useState<MockPurchaseBill | null>(initial);
+  const queryClient = useQueryClient();
   const [returnOpen, setReturnOpen] = useState(false);
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_BILLS, billId],
+    queryFn: () => getPurchaseBillById(billId),
+    enabled: Boolean(billId),
+  });
+
+  const bill = data?.data;
+
+  const confirmMutation = useMutation({
+    mutationFn: () => confirmPurchaseBill(billId),
+    onSuccess: () => {
+      toast.success("Bill confirmed. Stock updated.");
+      void queryClient.invalidateQueries({
+        queryKey: [...QUERY_KEYS.PURCHASE_BILLS, billId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.PURCHASE_BILLS,
+      });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STOCK });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.PURCHASE_ORDERS,
+      });
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to confirm bill."));
+    },
+  });
+
+  const returnMutation = useMutation({
+    mutationFn: (reason: string) => returnPurchaseBill(billId, reason),
+    onSuccess: () => {
+      toast.success("Bill returned.");
+      void queryClient.invalidateQueries({
+        queryKey: [...QUERY_KEYS.PURCHASE_BILLS, billId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.PURCHASE_BILLS,
+      });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STOCK });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.PURCHASE_ORDERS,
+      });
+      setReturnOpen(false);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to return bill."));
+    },
+  });
+
+  if (isLoading) {
+    return <TableSkeleton rows={6} />;
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
+        <p className="text-sm font-medium text-slate-900">
+          Could not load purchase bill
+        </p>
+        <Button type="button" variant="outline" onClick={() => void refetch()}>
+          Try Again
+        </Button>
+      </div>
+    );
+  }
 
   if (!bill) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
-        <h1 className="text-lg font-semibold">Purchase bill not found</h1>
-        <Button
-          type="button"
-          variant="outline"
-          className="mt-4"
-          onClick={() => router.push(ROUTES.PURCHASE.BILLS)}
-        >
-          Back to list
-        </Button>
-      </div>
+      <EmptyState
+        title="Purchase bill not found"
+        description="This bill may have been removed or the link is invalid."
+        actionLabel="Back to list"
+        onAction={() => router.push(ROUTES.PURCHASE.BILLS)}
+      />
     );
   }
 
@@ -90,7 +156,15 @@ export function BillDetailPage({ billId }: BillDetailPageProps) {
           <BillDetailCard bill={bill} />
         </div>
         <div className="flex flex-col gap-4">
-          <StockUpdateInfo bill={bill} />
+          <StockUpdateInfo
+            bill={bill}
+            onConfirm={
+              bill.status === "PENDING"
+                ? () => confirmMutation.mutate()
+                : undefined
+            }
+            isConfirming={confirmMutation.isPending}
+          />
           <PaymentStatusCard bill={bill} />
         </div>
       </div>
@@ -100,11 +174,11 @@ export function BillDetailPage({ billId }: BillDetailPageProps) {
       <ReturnBillDialog
         open={returnOpen}
         billNumber={bill.billNumber}
-        onClose={() => setReturnOpen(false)}
-        onConfirm={() => {
-          setBill({ ...bill, status: "RETURNED" });
-          toast.success("Bill returned successfully");
+        isPending={returnMutation.isPending}
+        onClose={() => {
+          if (!returnMutation.isPending) setReturnOpen(false);
         }}
+        onConfirm={(reason) => returnMutation.mutate(reason)}
       />
     </div>
   );

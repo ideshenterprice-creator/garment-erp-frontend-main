@@ -1,38 +1,38 @@
-import { ClipboardList, Cog, Shirt, Truck } from "lucide-react";
+import { CheckCircle2, ClipboardList, Cog, Truck } from "lucide-react";
 
 interface POStatCardsProps {
-  activePOs: number;
-  totalPieces: number;
-  inProduction: number;
-  readyToShip: number;
+  totalActive: number;
+  totalInProduction: number;
+  totalReadyToShip: number;
+  totalCompleted: number;
 }
 
 export function POStatCards({
-  activePOs,
-  totalPieces,
-  inProduction,
-  readyToShip,
+  totalActive,
+  totalInProduction,
+  totalReadyToShip,
+  totalCompleted,
 }: POStatCardsProps) {
   const cards = [
     {
       label: "Active POs",
-      value: String(activePOs),
+      value: String(totalActive),
       icon: <ClipboardList className="size-5" />,
     },
     {
-      label: "Total Pieces Ordered",
-      value: totalPieces.toLocaleString("en-IN"),
-      icon: <Shirt className="size-5" />,
-    },
-    {
       label: "In Production",
-      value: String(inProduction),
+      value: String(totalInProduction),
       icon: <Cog className="size-5" />,
     },
     {
       label: "Ready to Ship",
-      value: String(readyToShip),
+      value: String(totalReadyToShip),
       icon: <Truck className="size-5" />,
+    },
+    {
+      label: "Completed",
+      value: String(totalCompleted),
+      icon: <CheckCircle2 className="size-5" />,
     },
   ];
 

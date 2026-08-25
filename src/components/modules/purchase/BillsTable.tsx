@@ -1,8 +1,8 @@
 "use client";
 
-import { Check, Undo2 } from "lucide-react";
+import { Check, Eye, Undo2 } from "lucide-react";
 import { format } from "date-fns";
-import type { MockPurchaseBill } from "@/mock/purchase";
+import type { PurchaseBill } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
 import { BillStatusBadge } from "@/components/modules/purchase/BillStatusBadge";
 import { Button } from "@/components/ui/button";
@@ -17,33 +17,51 @@ import {
 import { cn, formatCurrency } from "@/lib/utils";
 
 interface BillsTableProps {
-  bills: MockPurchaseBill[];
-  onRowClick: (bill: MockPurchaseBill) => void;
-  onConfirm: (bill: MockPurchaseBill) => void;
-  onReturn: (bill: MockPurchaseBill) => void;
+  bills: PurchaseBill[];
+  onRowClick: (bill: PurchaseBill) => void;
+  onView: (bill: PurchaseBill) => void;
+  onConfirm: (bill: PurchaseBill) => void;
+  onReturn: (bill: PurchaseBill) => void;
   onAdd?: () => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  emptyActionLabel?: string;
+  onEmptyAction?: () => void;
+  emptyActionIsClear?: boolean;
 }
-
-const fabricBadgeClass: Record<MockPurchaseBill["fabricBadge"], string> = {
-  cotton: "bg-emerald-100 text-emerald-700",
-  fleece: "bg-amber-100 text-amber-800",
-  rib: "bg-sky-100 text-sky-700",
-};
 
 export function BillsTable({
   bills,
   onRowClick,
+  onView,
   onConfirm,
   onReturn,
   onAdd,
+  emptyTitle = "No purchase bills found",
+  emptyDescription = "Try changing filters or create a new purchase bill.",
+  emptyActionLabel = "New Purchase Bill",
+  onEmptyAction,
+  emptyActionIsClear = false,
 }: BillsTableProps) {
   if (bills.length === 0) {
     return (
       <EmptyState
-        title="No purchase bills found"
-        description="Try changing filters or create a new purchase bill."
-        actionLabel="New Purchase Bill"
-        onAction={onAdd}
+        title={emptyTitle}
+        description={emptyDescription}
+        actionLabel={emptyActionIsClear ? undefined : emptyActionLabel}
+        onAction={emptyActionIsClear ? undefined : onEmptyAction ?? onAdd}
+        actionButton={
+          emptyActionIsClear && onEmptyAction ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4"
+              onClick={onEmptyAction}
+            >
+              Clear Filters
+            </Button>
+          ) : undefined
+        }
       />
     );
   }
@@ -101,24 +119,41 @@ export function BillsTable({
                   <span
                     className={cn(
                       "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
-                      fabricBadgeClass[bill.fabricBadge]
+                      bill.product.category === "RAW_MATERIAL"
+                        ? "bg-teal-100 text-teal-700"
+                        : "bg-slate-100 text-slate-700"
                     )}
                   >
-                    {bill.fabricLabel}
+                    {bill.product.name}
                   </span>
                 </TableCell>
                 <TableCell>
-                  {bill.netWeight.toLocaleString("en-IN")}
+                  {Number(bill.netWeight).toLocaleString("en-IN")} kg
                 </TableCell>
-                <TableCell>₹{bill.ratePerKg.toLocaleString("en-IN")}</TableCell>
+                <TableCell>
+                  ₹{Number(bill.ratePerKg).toLocaleString("en-IN")}
+                </TableCell>
                 <TableCell className="font-semibold">
-                  {formatCurrency(bill.totalAmount)}
+                  {formatCurrency(Number(bill.totalAmount))}
                 </TableCell>
                 <TableCell>
                   <BillStatusBadge status={bill.status} />
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-slate-500"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onView(bill);
+                      }}
+                      aria-label="View bill"
+                    >
+                      <Eye className="size-4" />
+                    </Button>
                     {bill.status === "PENDING" ? (
                       <Button
                         type="button"
@@ -134,25 +169,21 @@ export function BillsTable({
                         <Check className="size-4" />
                       </Button>
                     ) : null}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        "size-8",
-                        bill.status === "CONFIRMED"
-                          ? "text-slate-500 hover:text-red-600"
-                          : "text-slate-300"
-                      )}
-                      disabled={bill.status !== "CONFIRMED"}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onReturn(bill);
-                      }}
-                      aria-label="Return bill"
-                    >
-                      <Undo2 className="size-4" />
-                    </Button>
+                    {bill.status === "CONFIRMED" ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-slate-500 hover:text-red-600"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onReturn(bill);
+                        }}
+                        aria-label="Return bill"
+                      >
+                        <Undo2 className="size-4" />
+                      </Button>
+                    ) : null}
                   </div>
                 </TableCell>
               </TableRow>

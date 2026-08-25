@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import type { POItem } from "@/types";
-import { mockProducts } from "@/mock/masters";
 import {
   Table,
   TableBody,
@@ -17,25 +15,16 @@ interface POItemsTableProps {
   items: POItem[];
 }
 
-function productHrefForGarment(garmentType: string): string | null {
-  const match = mockProducts.find(
-    (product) =>
-      product.name.toLowerCase() === garmentType.toLowerCase() ||
-      product.garmentType?.toLowerCase() === garmentType.toLowerCase()
-  );
-  return match ? `/masters/product/${match.id}` : null;
-}
-
 export function POItemsTable({ items }: POItemsTableProps) {
   const totals = items.reduce(
     (acc, item) => ({
-      qty_0_3M: acc.qty_0_3M + item.qty_0_3M,
-      qty_3_6M: acc.qty_3_6M + item.qty_3_6M,
-      qty_6_9M: acc.qty_6_9M + item.qty_6_9M,
-      qty_9_12M: acc.qty_9_12M + item.qty_9_12M,
-      qty_12_18M: acc.qty_12_18M + item.qty_12_18M,
-      qty_18_24M: acc.qty_18_24M + item.qty_18_24M,
-      totalPieces: acc.totalPieces + item.totalPieces,
+      qty_0_3M: acc.qty_0_3M + Number(item.qty_0_3M),
+      qty_3_6M: acc.qty_3_6M + Number(item.qty_3_6M),
+      qty_6_9M: acc.qty_6_9M + Number(item.qty_6_9M),
+      qty_9_12M: acc.qty_9_12M + Number(item.qty_9_12M),
+      qty_12_18M: acc.qty_12_18M + Number(item.qty_12_18M),
+      qty_18_24M: acc.qty_18_24M + Number(item.qty_18_24M),
+      totalPieces: acc.totalPieces + Number(item.totalPieces),
     }),
     {
       qty_0_3M: 0,
@@ -75,38 +64,24 @@ export function POItemsTable({ items }: POItemsTableProps) {
                 </TableCell>
               </TableRow>
             ) : (
-              items.map((item) => {
-                const productHref = productHrefForGarment(item.garmentType);
-                return (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">
-                      {item.designNumber}
-                    </TableCell>
-                    <TableCell>
-                      {productHref ? (
-                        <Link
-                          href={productHref}
-                          className="font-medium text-[#1b3a3a] hover:underline"
-                        >
-                          {item.garmentType}
-                        </Link>
-                      ) : (
-                        item.garmentType
-                      )}
-                    </TableCell>
-                    <TableCell>{item.color}</TableCell>
-                    <TableCell className="text-right">{item.qty_0_3M}</TableCell>
-                    <TableCell className="text-right">{item.qty_3_6M}</TableCell>
-                    <TableCell className="text-right">{item.qty_6_9M}</TableCell>
-                    <TableCell className="text-right">{item.qty_9_12M}</TableCell>
-                    <TableCell className="text-right">{item.qty_12_18M}</TableCell>
-                    <TableCell className="text-right">{item.qty_18_24M}</TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {item.totalPieces.toLocaleString("en-IN")}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+              items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-medium">
+                    {item.designNumber}
+                  </TableCell>
+                  <TableCell>{item.garmentType}</TableCell>
+                  <TableCell>{item.color}</TableCell>
+                  <TableCell className="text-right">{item.qty_0_3M}</TableCell>
+                  <TableCell className="text-right">{item.qty_3_6M}</TableCell>
+                  <TableCell className="text-right">{item.qty_6_9M}</TableCell>
+                  <TableCell className="text-right">{item.qty_9_12M}</TableCell>
+                  <TableCell className="text-right">{item.qty_12_18M}</TableCell>
+                  <TableCell className="text-right">{item.qty_18_24M}</TableCell>
+                  <TableCell className="text-right font-semibold">
+                    {Number(item.totalPieces).toLocaleString("en-IN")}
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
           {items.length > 0 ? (

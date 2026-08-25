@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, X } from "lucide-react";
+import { Eye, X } from "lucide-react";
 import { format } from "date-fns";
 import type { PurchaseOrder, PurchaseOrderStatus } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -14,33 +14,57 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getDeliveryDateClassName } from "@/lib/purchaseOrders";
+import { cn } from "@/lib/utils";
 
 interface POTableProps {
   orders: PurchaseOrder[];
   onRowClick: (order: PurchaseOrder) => void;
-  onEdit: (order: PurchaseOrder) => void;
+  onView: (order: PurchaseOrder) => void;
   onCancel: (order: PurchaseOrder) => void;
   onAdd?: () => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  emptyActionLabel?: string;
+  onEmptyAction?: () => void;
+  emptyActionIsClear?: boolean;
 }
 
 function canCancel(status: PurchaseOrderStatus): boolean {
-  return status !== "COMPLETED" && status !== "CANCELLED";
+  return status === "ACTIVE" || status === "IN_PRODUCTION";
 }
 
 export function POTable({
   orders,
   onRowClick,
-  onEdit,
+  onView,
   onCancel,
   onAdd,
+  emptyTitle = "No purchase orders found",
+  emptyDescription = "Try changing filters or create a new purchase order.",
+  emptyActionLabel = "New PO",
+  onEmptyAction,
+  emptyActionIsClear = false,
 }: POTableProps) {
   if (orders.length === 0) {
     return (
       <EmptyState
-        title="No purchase orders found"
-        description="Try changing filters or create a new purchase order."
-        actionLabel="New PO"
-        onAction={onAdd}
+        title={emptyTitle}
+        description={emptyDescription}
+        actionLabel={emptyActionIsClear ? undefined : emptyActionLabel}
+        onAction={emptyActionIsClear ? undefined : onEmptyAction ?? onAdd}
+        actionButton={
+          emptyActionIsClear && onEmptyAction ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4"
+              onClick={onEmptyAction}
+            >
+              Clear Filters
+            </Button>
+          ) : undefined
+        }
       />
     );
   }
@@ -89,9 +113,11 @@ export function POTable({
                 </TableCell>
                 <TableCell>
                   <div>
-                    <p className="font-medium text-slate-900">{order.buyer.name}</p>
+                    <p className="font-medium text-slate-900">
+                      {order.buyer.name}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {order.buyer.city}
+                      {order.buyer.city || "—"}
                       {order.buyer.country ? `, ${order.buyer.country}` : ""}
                     </p>
                   </div>
@@ -99,11 +125,15 @@ export function POTable({
                 <TableCell>
                   {format(new Date(order.orderDate), "dd MMM yyyy")}
                 </TableCell>
-                <TableCell>
+                <TableCell
+                  className={cn(
+                    getDeliveryDateClassName(order.deliveryDate, order.status)
+                  )}
+                >
                   {format(new Date(order.deliveryDate), "dd MMM yyyy")}
                 </TableCell>
                 <TableCell className="font-semibold">
-                  {order.totalPieces.toLocaleString("en-IN")}
+                  {Number(order.totalPieces).toLocaleString("en-IN")}
                 </TableCell>
                 <TableCell>{order.totalDesigns}</TableCell>
                 <TableCell>
@@ -116,33 +146,29 @@ export function POTable({
                       variant="ghost"
                       size="icon"
                       className="size-8 text-slate-500"
-                      disabled={!canCancel(order.status)}
                       onClick={(event) => {
                         event.stopPropagation();
-                        onEdit(order);
+                        onView(order);
                       }}
-                      aria-label="Edit PO"
+                      aria-label="View PO"
                     >
-                      <Pencil className="size-4" />
+                      <Eye className="size-4" />
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className={`size-8 ${
-                        canCancel(order.status)
-                          ? "text-red-500 hover:text-red-600"
-                          : "text-slate-300"
-                      }`}
-                      disabled={!canCancel(order.status)}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onCancel(order);
-                      }}
-                      aria-label="Cancel PO"
-                    >
-                      <X className="size-4" />
-                    </Button>
+                    {canCancel(order.status) ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-red-500 hover:text-red-600"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onCancel(order);
+                        }}
+                        aria-label="Cancel PO"
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    ) : null}
                   </div>
                 </TableCell>
               </TableRow>

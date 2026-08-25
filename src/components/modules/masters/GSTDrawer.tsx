@@ -4,9 +4,9 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { TaxType } from "@/types";
-import type { MockGSTRate } from "@/mock/masters";
+import type { CreateGSTPayload, GSTRate } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,13 +18,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { createGSTRate, updateGSTRate } from "@/services/masters.service";
 
 const gstSchema = z.object({
   category: z.string().min(1, "Category name is required"),
   gstPercent: z.number().min(0, "GST rate is required"),
   taxType: z.enum(["ZERO_RATED", "IGST", "CGST_SGST"]),
-  effectiveFrom: z.string().min(1, "Effective from date is required"),
   applicableOn: z.string().min(1, "Applicable on is required"),
+  notes: z.string().optional(),
 });
 
 type GSTFormValues = z.infer<typeof gstSchema>;
@@ -32,20 +35,20 @@ type GSTFormValues = z.infer<typeof gstSchema>;
 interface GSTDrawerProps {
   open: boolean;
   onClose: () => void;
-  rate?: MockGSTRate | null;
-  onSave: (rate: MockGSTRate) => void;
+  rate?: GSTRate | null;
 }
 
 const defaultValues: GSTFormValues = {
   category: "",
   gstPercent: 12,
   taxType: "CGST_SGST",
-  effectiveFrom: "",
   applicableOn: "In-state Purchase",
+  notes: "",
 };
 
-export function GSTDrawer({ open, onClose, rate, onSave }: GSTDrawerProps) {
+export function GSTDrawer({ open, onClose, rate }: GSTDrawerProps) {
   const isEdit = Boolean(rate);
+  const queryClient = useQueryClient();
 
   const {
     register,
@@ -53,7 +56,7 @@ export function GSTDrawer({ open, onClose, rate, onSave }: GSTDrawerProps) {
     reset,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<GSTFormValues>({
     resolver: zodResolver(gstSchema),
     defaultValues,
@@ -66,30 +69,71 @@ export function GSTDrawer({ open, onClose, rate, onSave }: GSTDrawerProps) {
     if (rate) {
       reset({
         category: rate.category,
-        gstPercent: rate.gstPercent,
+        gstPercent: Number(rate.gstPercent),
         taxType: rate.taxType,
-        effectiveFrom: rate.effectiveFrom ?? "",
         applicableOn: rate.applicableOn,
+        notes: rate.notes ?? "",
       });
     } else {
       reset(defaultValues);
     }
   }, [open, rate, reset]);
 
+  const addGSTMutation = useMutation({
+    mutationFn: (data: CreateGSTPayload) => createGSTRate(data),
+    onSuccess: () => {
+      toast.success("GST rate added.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GST });
+      onClose();
+      reset(defaultValues);
+    },
+    onError: (error) => {
+      const message = getErrorMessage(error, "Failed to add GST rate.");
+      if (
+        message.toLowerCase().includes("unique") ||
+        message.toLowerCase().includes("already")
+      ) {
+        toast.error("A GST rate for this category already exists.");
+        return;
+      }
+      toast.error(message);
+    },
+  });
+
+  const editGSTMutation = useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<CreateGSTPayload>;
+    }) => updateGSTRate(id, data),
+    onSuccess: () => {
+      toast.success("GST rate updated.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.GST });
+      onClose();
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to update GST rate."));
+    },
+  });
+
+  const isPending = addGSTMutation.isPending || editGSTMutation.isPending;
+
   function onSubmit(values: GSTFormValues) {
-    const next: MockGSTRate = {
-      id: rate?.id ?? `gst-${Date.now()}`,
+    const payload: CreateGSTPayload = {
       category: values.category,
       gstPercent: values.gstPercent,
-      taxType: values.taxType as TaxType,
+      taxType: values.taxType,
       applicableOn: values.applicableOn,
-      notes: rate?.notes ?? "",
-      effectiveFrom: values.effectiveFrom,
+      notes: values.notes || undefined,
     };
 
-    onSave(next);
-    toast.success(isEdit ? "GST rate updated successfully" : "GST rate saved successfully");
-    onClose();
+    if (isEdit && rate) {
+      editGSTMutation.mutate({ id: rate.id, data: payload });
+      return;
+    }
+    addGSTMutation.mutate(payload);
   }
 
   return (
@@ -100,16 +144,16 @@ export function GSTDrawer({ open, onClose, rate, onSave }: GSTDrawerProps) {
       description="Configure a new tax category for the master list."
       footer={
         <div className="flex items-center justify-end gap-3">
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
           <Button
             type="submit"
             form="gst-form"
-            disabled={isSubmitting}
+            disabled={isPending}
             className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
           >
-            {isEdit ? "Update Rate" : "Save Rate"}
+            {isPending ? "Saving..." : isEdit ? "Update Rate" : "Save Rate"}
           </Button>
         </div>
       }
@@ -174,21 +218,6 @@ export function GSTDrawer({ open, onClose, rate, onSave }: GSTDrawerProps) {
 
         <div className="flex flex-col gap-2">
           <Label
-            htmlFor="effectiveFrom"
-            className="text-[11px] font-semibold uppercase tracking-wider text-slate-400"
-          >
-            Effective From
-          </Label>
-          <Input id="effectiveFrom" type="date" {...register("effectiveFrom")} />
-          {errors.effectiveFrom ? (
-            <p className="text-sm text-destructive">
-              {errors.effectiveFrom.message}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label
             htmlFor="applicableOn"
             className="text-[11px] font-semibold uppercase tracking-wider text-slate-400"
           >
@@ -204,6 +233,16 @@ export function GSTDrawer({ open, onClose, rate, onSave }: GSTDrawerProps) {
               {errors.applicableOn.message}
             </p>
           ) : null}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label
+            htmlFor="notes"
+            className="text-[11px] font-semibold uppercase tracking-wider text-slate-400"
+          >
+            Notes (Optional)
+          </Label>
+          <Input id="notes" placeholder="Optional notes" {...register("notes")} />
         </div>
       </form>
     </DrawerForm>

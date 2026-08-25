@@ -1,6 +1,6 @@
-import { Wallet } from "lucide-react";
-import type { MockPurchaseBill } from "@/mock/purchase";
-import { formatCurrency } from "@/lib/utils";
+import { Building2, Wallet } from "lucide-react";
+import { format } from "date-fns";
+import type { PurchaseBill } from "@/types";
 import {
   Table,
   TableBody,
@@ -9,16 +9,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { format } from "date-fns";
-import { Building2 } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 
-interface PaymentHistoryProps {
-  bill: MockPurchaseBill;
-}
-
-export function PaymentStatusCard({ bill }: { bill: MockPurchaseBill }) {
-  const outstanding = Math.max(0, bill.totalAmount - bill.amountPaid);
-  const isPaid = outstanding === 0 && bill.amountPaid > 0;
+export function PaymentStatusCard({ bill }: { bill: PurchaseBill }) {
+  const totalPaid = Number(bill.totalPaid ?? 0);
+  const outstanding = Number(
+    bill.outstanding ?? Math.max(0, Number(bill.totalAmount) - totalPaid)
+  );
+  const isFullyPaid = outstanding === 0;
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -26,12 +24,12 @@ export function PaymentStatusCard({ bill }: { bill: MockPurchaseBill }) {
         <h2 className="font-semibold text-slate-900">Payment Status</h2>
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-            isPaid
+            isFullyPaid
               ? "bg-emerald-100 text-emerald-700"
               : "bg-amber-100 text-amber-700"
           }`}
         >
-          {isPaid ? "PAID" : "PENDING"}
+          {isFullyPaid ? "PAID" : "PENDING"}
         </span>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -40,7 +38,7 @@ export function PaymentStatusCard({ bill }: { bill: MockPurchaseBill }) {
             Amount Due
           </p>
           <p className="mt-1 font-semibold text-slate-900">
-            {formatCurrency(bill.totalAmount)}
+            {formatCurrency(Number(bill.totalAmount))}
           </p>
         </div>
         <div className="rounded-lg bg-emerald-50 px-3 py-3">
@@ -48,7 +46,7 @@ export function PaymentStatusCard({ bill }: { bill: MockPurchaseBill }) {
             Amount Paid
           </p>
           <p className="mt-1 font-semibold text-emerald-800">
-            {formatCurrency(bill.amountPaid)}
+            {formatCurrency(totalPaid)}
           </p>
         </div>
       </div>
@@ -56,15 +54,21 @@ export function PaymentStatusCard({ bill }: { bill: MockPurchaseBill }) {
         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
           Outstanding
         </p>
-        <p className="mt-1 text-2xl font-bold text-slate-900">
-          {formatCurrency(outstanding)}
+        <p
+          className={`mt-1 text-2xl font-bold ${
+            outstanding > 0 ? "text-red-600" : "text-emerald-700"
+          }`}
+        >
+          {outstanding > 0 ? formatCurrency(outstanding) : "Fully Paid"}
         </p>
       </div>
     </div>
   );
 }
 
-export function PaymentHistory({ bill }: PaymentHistoryProps) {
+export function PaymentHistory({ bill }: { bill: PurchaseBill }) {
+  const payments = bill.paymentHistory ?? [];
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center gap-2">
@@ -76,37 +80,40 @@ export function PaymentHistory({ bill }: PaymentHistoryProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>
-              <TableHead>Method</TableHead>
+              <TableHead>Mode</TableHead>
               <TableHead>Reference</TableHead>
               <TableHead className="text-right">Amount</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {bill.payments.length === 0 ? (
+            {payments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell
+                  colSpan={4}
+                  className="text-center text-muted-foreground"
+                >
                   No payments recorded
                 </TableCell>
               </TableRow>
             ) : (
-              bill.payments.map((payment) => (
+              payments.map((payment) => (
                 <TableRow key={payment.id}>
                   <TableCell>
-                    {format(new Date(payment.date), "dd MMM yyyy")}
+                    {format(new Date(payment.paymentDate), "dd MMM yyyy")}
                   </TableCell>
                   <TableCell>
                     <span className="inline-flex items-center gap-2">
                       <Building2 className="size-3.5 text-slate-400" />
-                      {payment.method}
+                      {payment.paymentMode}
                     </span>
                   </TableCell>
                   <TableCell>
                     <span className="font-medium text-amber-800">
-                      {payment.reference}
+                      {payment.referenceNo ?? "—"}
                     </span>
                   </TableCell>
                   <TableCell className="text-right font-semibold">
-                    {formatCurrency(payment.amount)}
+                    {formatCurrency(Number(payment.amountPaid))}
                   </TableCell>
                 </TableRow>
               ))

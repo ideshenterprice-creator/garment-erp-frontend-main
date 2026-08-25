@@ -3,18 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Info, Package, Pencil } from "lucide-react";
-import type { MockProduct } from "@/mock/masters";
+import type { Product } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { ProductDrawer } from "@/components/modules/masters/ProductDrawer";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/constants/routes";
 
 interface ProductDetailPageProps {
-  product: MockProduct;
-  onProductUpdate: (product: MockProduct) => void;
+  product: Product;
 }
 
-function categoryLabel(category: MockProduct["category"]) {
+function categoryLabel(category: Product["category"]) {
   switch (category) {
     case "RAW_MATERIAL":
       return "Raw Material";
@@ -27,7 +26,7 @@ function categoryLabel(category: MockProduct["category"]) {
   }
 }
 
-function unitLabel(unit: MockProduct["unit"]) {
+function unitLabel(unit: Product["unit"]) {
   switch (unit) {
     case "KG":
       return "Kgs";
@@ -40,10 +39,11 @@ function unitLabel(unit: MockProduct["unit"]) {
   }
 }
 
-export function ProductDetailPage({
-  product,
-  onProductUpdate,
-}: ProductDetailPageProps) {
+function sizeLabel(size: string) {
+  return size.replace("SIZE_", "").replaceAll("_", "-");
+}
+
+export function ProductDetailPage({ product }: ProductDetailPageProps) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
 
@@ -65,20 +65,8 @@ export function ProductDetailPage({
                 {product.name}
               </h1>
               <StatusBadge
-                label={
-                  product.displayStatus === "ACTIVE"
-                    ? "Active"
-                    : product.displayStatus === "DISCONTINUED"
-                      ? "Discontinued"
-                      : "Tracking"
-                }
-                variant={
-                  product.displayStatus === "ACTIVE"
-                    ? "active"
-                    : product.displayStatus === "DISCONTINUED"
-                      ? "discontinued"
-                      : "tracking"
-                }
+                label={product.isActive ? "Active" : "Inactive"}
+                variant={product.isActive ? "active" : "inactive"}
                 withDot
               />
             </div>
@@ -120,7 +108,9 @@ export function ProductDetailPage({
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 GST Rate
               </p>
-              <p className="mt-1 text-sm font-medium">{product.gstRate}%</p>
+              <p className="mt-1 text-sm font-medium">
+                {Number(product.gstRate)}%
+              </p>
             </div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
@@ -128,12 +118,29 @@ export function ProductDetailPage({
               </p>
               <p className="mt-1 text-sm font-medium">{product.productCode}</p>
             </div>
-            {product.garmentType ? (
+            {product.description ? (
               <div className="sm:col-span-2">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  Garment Type
+                  Description
                 </p>
-                <p className="mt-1 text-sm font-medium">{product.garmentType}</p>
+                <p className="mt-1 text-sm font-medium">{product.description}</p>
+              </div>
+            ) : null}
+            {product.sizes && product.sizes.length > 0 ? (
+              <div className="sm:col-span-2">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  Sizes
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {product.sizes.map((size) => (
+                    <span
+                      key={size.id}
+                      className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+                    >
+                      {sizeLabel(size.sizeLabel)}
+                    </span>
+                  ))}
+                </div>
               </div>
             ) : null}
           </div>
@@ -159,7 +166,6 @@ export function ProductDetailPage({
         open={editOpen}
         onClose={() => setEditOpen(false)}
         product={product}
-        onSave={onProductUpdate}
       />
     </div>
   );

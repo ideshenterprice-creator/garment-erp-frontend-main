@@ -20,7 +20,12 @@ export function WeightCalculator({
   grossError,
   tareError,
 }: WeightCalculatorProps) {
-  const netWeight = Math.max(0, grossWeight - tareWeight);
+  const rawNet = (grossWeight || 0) - (tareWeight || 0);
+  const netWeight = Math.max(0, rawNet);
+  const netError =
+    Number.isFinite(rawNet) && rawNet < 0
+      ? "Gross weight must be greater than tare weight"
+      : undefined;
 
   return (
     <div className="grid gap-3 sm:grid-cols-3">
@@ -63,9 +68,13 @@ export function WeightCalculator({
             {netWeight.toLocaleString("en-IN", {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
-            })}
+            })}{" "}
+            kg
           </span>
         </div>
+        {netError ? (
+          <p className="text-sm text-destructive">{netError}</p>
+        ) : null}
       </div>
     </div>
   );

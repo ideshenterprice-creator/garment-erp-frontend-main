@@ -1,6 +1,6 @@
 import api from "@/lib/axios";
 import type { ApiResponse, PaginatedResponse } from "@/types/api";
-import type { KarigarPayment } from "@/types";
+import type { AccountStatement, KarigarPayment } from "@/types";
 import type { ListParams } from "@/services/masters.service";
 
 export async function getKarigarPayments(
@@ -65,8 +65,8 @@ export async function createVoucher(
 
 export async function getAccountStatement(
   params?: ListParams
-): Promise<ApiResponse<unknown>> {
-  const response = await api.get<ApiResponse<unknown>>(
+): Promise<ApiResponse<AccountStatement>> {
+  const response = await api.get<ApiResponse<AccountStatement>>(
     "/accounts/statement",
     { params }
   );

@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import type { MockPurchaseBill } from "@/mock/purchase";
+import type { PurchaseRegisterRow } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
   Table,
@@ -10,16 +10,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatCurrency } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 interface RegisterTableProps {
-  bills: MockPurchaseBill[];
-  /** When paginating, pass the full filtered set so footer totals stay correct. */
-  totalsFrom?: MockPurchaseBill[];
+  bills: PurchaseRegisterRow[];
+  totals: {
+    totalQty: number;
+    totalAmount: number;
+    totalGST: number;
+    totalNetTotal: number;
+  };
 }
 
-export function RegisterTable({ bills, totalsFrom }: RegisterTableProps) {
+function paymentBadgeClass(status: PurchaseRegisterRow["paymentStatus"]) {
+  if (status === "PAID") return "bg-emerald-100 text-emerald-700";
+  if (status === "PARTIAL") return "bg-amber-100 text-amber-700";
+  return "bg-amber-100 text-amber-700";
+}
+
+function paymentLabel(status: PurchaseRegisterRow["paymentStatus"]) {
+  if (status === "PAID") return "PAID";
+  if (status === "PARTIAL") return "PARTIAL";
+  return "PENDING";
+}
+
+export function RegisterTable({ bills, totals }: RegisterTableProps) {
   if (bills.length === 0) {
     return (
       <EmptyState
@@ -28,18 +43,6 @@ export function RegisterTable({ bills, totalsFrom }: RegisterTableProps) {
       />
     );
   }
-
-  const totalsSource = totalsFrom ?? bills;
-  const totals = totalsSource.reduce(
-    (acc, bill) => ({
-      netWeight: acc.netWeight + bill.netWeight,
-      totalAmount: acc.totalAmount + bill.totalAmount,
-      amountPaid: acc.amountPaid + bill.amountPaid,
-      outstanding:
-        acc.outstanding + Math.max(0, bill.totalAmount - bill.amountPaid),
-    }),
-    { netWeight: 0, totalAmount: 0, amountPaid: 0, outstanding: 0 }
-  );
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -57,16 +60,22 @@ export function RegisterTable({ bills, totalsFrom }: RegisterTableProps) {
                 Supplier
               </TableHead>
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Fabric
-              </TableHead>
-              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Linked PO
+                Fabric Type
               </TableHead>
               <TableHead className="text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Qty (kg)
               </TableHead>
               <TableHead className="text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Amount
+                Rate
+              </TableHead>
+              <TableHead className="text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Total
+              </TableHead>
+              <TableHead className="text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                GST
+              </TableHead>
+              <TableHead className="text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Net Total
               </TableHead>
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Payment Status
@@ -74,54 +83,61 @@ export function RegisterTable({ bills, totalsFrom }: RegisterTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {bills.map((bill) => {
-              const outstanding = Math.max(0, bill.totalAmount - bill.amountPaid);
-              const paid = outstanding === 0 && bill.amountPaid > 0;
-              return (
-                <TableRow key={bill.id}>
-                  <TableCell className="font-semibold">{bill.billNumber}</TableCell>
-                  <TableCell>
-                    {format(new Date(bill.purchaseDate), "dd MMM yyyy")}
-                  </TableCell>
-                  <TableCell>{bill.supplier.name}</TableCell>
-                  <TableCell>{bill.fabricLabel}</TableCell>
-                  <TableCell>{bill.po.poNumber}</TableCell>
-                  <TableCell className="text-right">
-                    {bill.netWeight.toLocaleString("en-IN")}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold">
-                    {formatCurrency(bill.totalAmount)}
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
-                        paid
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-amber-100 text-amber-700"
-                      )}
-                    >
-                      {paid ? "PAID" : "PENDING"}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+            {bills.map((bill) => (
+              <TableRow key={`${bill.billNumber}-${bill.date}`}>
+                <TableCell className="font-semibold">{bill.billNumber}</TableCell>
+                <TableCell>
+                  {format(new Date(bill.date), "dd MMM yyyy")}
+                </TableCell>
+                <TableCell>{bill.supplier.name}</TableCell>
+                <TableCell>{bill.fabricType.name}</TableCell>
+                <TableCell className="text-right">
+                  {Number(bill.qty).toLocaleString("en-IN")} kg
+                </TableCell>
+                <TableCell className="text-right">
+                  ₹{Number(bill.rate).toLocaleString("en-IN")}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatCurrency(Number(bill.total))}
+                </TableCell>
+                <TableCell className="text-right">
+                  {formatCurrency(Number(bill.gst))}
+                </TableCell>
+                <TableCell className="text-right font-semibold">
+                  {formatCurrency(Number(bill.netTotal))}
+                </TableCell>
+                <TableCell>
+                  <span
+                    className={cn(
+                      "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
+                      paymentBadgeClass(bill.paymentStatus)
+                    )}
+                  >
+                    {paymentLabel(bill.paymentStatus)}
+                  </span>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
           <TableFooter>
-            <TableRow className="bg-slate-50 hover:bg-slate-50">
-              <TableCell colSpan={5} className="font-semibold">
+            <TableRow className="bg-slate-100 hover:bg-slate-100">
+              <TableCell colSpan={4} className="font-bold">
                 Totals
               </TableCell>
-              <TableCell className="text-right font-semibold">
-                {totals.netWeight.toLocaleString("en-IN")}
+              <TableCell className="text-right font-bold">
+                {Number(totals.totalQty).toLocaleString("en-IN")} kg
               </TableCell>
-              <TableCell className="text-right font-semibold">
-                {formatCurrency(totals.totalAmount)}
+              <TableCell />
+              <TableCell className="text-right font-bold">
+                {formatCurrency(Number(totals.totalAmount))}
               </TableCell>
-              <TableCell className="font-semibold text-slate-600">
-                Outstanding {formatCurrency(totals.outstanding)}
+              <TableCell className="text-right font-bold">
+                {formatCurrency(Number(totals.totalGST))}
               </TableCell>
+              <TableCell className="text-right font-bold">
+                {formatCurrency(Number(totals.totalNetTotal))}
+              </TableCell>
+              <TableCell />
             </TableRow>
           </TableFooter>
         </Table>

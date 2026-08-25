@@ -1,6 +1,6 @@
 import type { PurchaseBillStatus } from "@/types";
 import { cn } from "@/lib/utils";
-import { getBillStatusLabel } from "@/mock/purchase";
+import { getBillStatusLabel } from "@/lib/purchase";
 
 interface BillStatusBadgeProps {
   status: PurchaseBillStatus;

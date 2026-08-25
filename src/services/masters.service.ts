@@ -1,6 +1,11 @@
 import api from "@/lib/axios";
 import type { ApiResponse, PaginatedResponse } from "@/types/api";
 import type {
+  CreateGSTPayload,
+  CreateKarigarPayload,
+  CreateOperationPayload,
+  CreatePartyPayload,
+  CreateProductPayload,
   GSTRate,
   KarigarProfile,
   Operation,
@@ -28,7 +33,7 @@ export async function getPartyById(id: string): Promise<ApiResponse<Party>> {
 }
 
 export async function createParty(
-  data: Partial<Party>
+  data: CreatePartyPayload
 ): Promise<ApiResponse<Party>> {
   const response = await api.post<ApiResponse<Party>>(
     "/masters/parties",
@@ -39,7 +44,7 @@ export async function createParty(
 
 export async function updateParty(
   id: string,
-  data: Partial<Party>
+  data: Partial<CreatePartyPayload>
 ): Promise<ApiResponse<Party>> {
   const response = await api.put<ApiResponse<Party>>(
     `/masters/parties/${id}`,
@@ -79,7 +84,7 @@ export async function getProductById(
 }
 
 export async function createProduct(
-  data: Partial<Product>
+  data: CreateProductPayload
 ): Promise<ApiResponse<Product>> {
   const response = await api.post<ApiResponse<Product>>(
     "/masters/products",
@@ -90,11 +95,22 @@ export async function createProduct(
 
 export async function updateProduct(
   id: string,
-  data: Partial<Product>
+  data: Partial<CreateProductPayload>
 ): Promise<ApiResponse<Product>> {
   const response = await api.put<ApiResponse<Product>>(
     `/masters/products/${id}`,
     data
+  );
+  return response.data;
+}
+
+export async function toggleProductStatus(
+  id: string,
+  isActive: boolean
+): Promise<ApiResponse<Product>> {
+  const response = await api.patch<ApiResponse<Product>>(
+    `/masters/products/${id}/status`,
+    { isActive }
   );
   return response.data;
 }
@@ -110,7 +126,7 @@ export async function getOperations(
 }
 
 export async function createOperation(
-  data: Partial<Operation>
+  data: CreateOperationPayload
 ): Promise<ApiResponse<Operation>> {
   const response = await api.post<ApiResponse<Operation>>(
     "/masters/operations",
@@ -121,11 +137,22 @@ export async function createOperation(
 
 export async function updateOperation(
   id: string,
-  data: Partial<Operation>
-): Promise<ApiResponse<Operation>> {
-  const response = await api.put<ApiResponse<Operation>>(
+  data: Partial<CreateOperationPayload>
+): Promise<ApiResponse<Operation & { note?: string }>> {
+  const response = await api.put<ApiResponse<Operation & { note?: string }>>(
     `/masters/operations/${id}`,
     data
+  );
+  return response.data;
+}
+
+export async function toggleOperationStatus(
+  id: string,
+  isActive: boolean
+): Promise<ApiResponse<Operation>> {
+  const response = await api.patch<ApiResponse<Operation>>(
+    `/masters/operations/${id}/status`,
+    { isActive }
   );
   return response.data;
 }
@@ -136,7 +163,7 @@ export async function getGSTRates(): Promise<ApiResponse<GSTRate[]>> {
 }
 
 export async function createGSTRate(
-  data: Partial<GSTRate>
+  data: CreateGSTPayload
 ): Promise<ApiResponse<GSTRate>> {
   const response = await api.post<ApiResponse<GSTRate>>("/masters/gst", data);
   return response.data;
@@ -144,7 +171,7 @@ export async function createGSTRate(
 
 export async function updateGSTRate(
   id: string,
-  data: Partial<GSTRate>
+  data: Partial<CreateGSTPayload>
 ): Promise<ApiResponse<GSTRate>> {
   const response = await api.put<ApiResponse<GSTRate>>(
     `/masters/gst/${id}`,
@@ -172,7 +199,7 @@ export async function getKarigarById(
 }
 
 export async function createKarigar(
-  data: Partial<KarigarProfile>
+  data: CreateKarigarPayload
 ): Promise<ApiResponse<KarigarProfile>> {
   const response = await api.post<ApiResponse<KarigarProfile>>(
     "/masters/karigars",
@@ -183,11 +210,22 @@ export async function createKarigar(
 
 export async function updateKarigar(
   id: string,
-  data: Partial<KarigarProfile>
+  data: Partial<CreateKarigarPayload>
 ): Promise<ApiResponse<KarigarProfile>> {
   const response = await api.put<ApiResponse<KarigarProfile>>(
     `/masters/karigars/${id}`,
     data
+  );
+  return response.data;
+}
+
+export async function toggleKarigarStatus(
+  id: string,
+  isActive: boolean
+): Promise<ApiResponse<KarigarProfile>> {
+  const response = await api.patch<ApiResponse<KarigarProfile>>(
+    `/masters/karigars/${id}/status`,
+    { isActive }
   );
   return response.data;
 }

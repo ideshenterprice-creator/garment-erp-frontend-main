@@ -1,6 +1,6 @@
 import type { PurchaseOrderStatus } from "@/types";
 import { cn } from "@/lib/utils";
-import { getPOStatusLabel } from "@/mock/purchaseOrders";
+import { getPOStatusLabel } from "@/lib/purchaseOrders";
 
 interface POStatusBadgeProps {
   status: PurchaseOrderStatus;

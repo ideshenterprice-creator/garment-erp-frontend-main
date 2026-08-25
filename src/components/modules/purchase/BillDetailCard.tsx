@@ -1,13 +1,13 @@
 import { FileText } from "lucide-react";
 import { format } from "date-fns";
-import type { MockPurchaseBill } from "@/mock/purchase";
-import { BillStatusBadge } from "@/components/modules/purchase/BillStatusBadge";
-import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
+import type { PurchaseBill } from "@/types";
+import { BillStatusBadge } from "@/components/modules/purchase/BillStatusBadge";
 import { ROUTES } from "@/constants/routes";
+import { formatCurrency } from "@/lib/utils";
 
 interface BillDetailCardProps {
-  bill: MockPurchaseBill;
+  bill: PurchaseBill;
 }
 
 export function BillDetailCard({ bill }: BillDetailCardProps) {
@@ -25,16 +25,19 @@ export function BillDetailCard({ bill }: BillDetailCardProps) {
 
       <div className="grid gap-x-8 gap-y-3 md:grid-cols-2">
         <InfoRow label="Bill No" value={bill.billNumber} />
-        <InfoRow label="Fabric" value={bill.fabricLabel} bold />
-        <InfoRow label="Supplier Invoice" value={bill.supplierInvoiceNo} />
+        <InfoRow label="Fabric" value={bill.product.name} bold />
+        <InfoRow
+          label="Supplier Invoice"
+          value={bill.supplierInvoiceNo ?? "—"}
+        />
         <InfoRow
           label="Gross Weight"
-          value={`${bill.grossWeight.toLocaleString("en-IN")} kg`}
+          value={`${Number(bill.grossWeight).toLocaleString("en-IN")} kg`}
         />
         <InfoRow label="Supplier" value={bill.supplier.name} />
         <InfoRow
           label="Tare Weight"
-          value={`${bill.tareWeight.toLocaleString("en-IN")} kg`}
+          value={`${Number(bill.tareWeight).toLocaleString("en-IN")} kg`}
         />
         <InfoRow
           label="Date"
@@ -43,7 +46,7 @@ export function BillDetailCard({ bill }: BillDetailCardProps) {
         <div className="-mx-2 rounded-md bg-amber-50 px-2 py-2 md:col-span-2 md:grid md:grid-cols-2 md:gap-x-8">
           <InfoRow
             label="Net Weight"
-            value={`${bill.netWeight.toLocaleString("en-IN")} kg`}
+            value={`${Number(bill.netWeight).toLocaleString("en-IN")} kg`}
             bold
           />
           <div />
@@ -52,18 +55,26 @@ export function BillDetailCard({ bill }: BillDetailCardProps) {
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
             Linked PO
           </p>
-          <Link
-            href={ROUTES.PURCHASE_ORDERS.DETAIL(bill.poId)}
-            className="mt-1 inline-block text-sm font-medium text-amber-800 hover:underline"
-          >
-            {bill.po.poNumber}
-          </Link>
+          {bill.poId && bill.po ? (
+            <Link
+              href={ROUTES.PURCHASE_ORDERS.DETAIL(bill.poId)}
+              className="mt-1 inline-block text-sm font-medium text-amber-800 hover:underline"
+            >
+              {bill.po.poNumber}
+              {bill.po.buyer?.name ? ` — ${bill.po.buyer.name}` : ""}
+            </Link>
+          ) : (
+            <p className="mt-1 text-sm font-medium text-slate-900">—</p>
+          )}
         </div>
-        <InfoRow label="Rate" value={`₹${bill.ratePerKg}/kg`} />
+        <InfoRow
+          label="Rate"
+          value={`₹${Number(bill.ratePerKg).toLocaleString("en-IN")}/kg`}
+        />
         <InfoRow label="Vehicle" value={bill.vehicleNumber || "—"} />
         <InfoRow
-          label={`GST (${bill.gstPercent}%)`}
-          value={formatCurrency(bill.gstAmount)}
+          label={`GST (${Number(bill.gstPercent)}%)`}
+          value={formatCurrency(Number(bill.gstAmount))}
         />
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
@@ -75,10 +86,18 @@ export function BillDetailCard({ bill }: BillDetailCardProps) {
         </div>
         <InfoRow
           label="Total Amount"
-          value={formatCurrency(bill.totalAmount)}
+          value={formatCurrency(Number(bill.totalAmount))}
           bold
           large
         />
+        {bill.supplier.city || bill.supplier.contact ? (
+          <InfoRow
+            label="Supplier Contact"
+            value={[bill.supplier.city, bill.supplier.contact]
+              .filter(Boolean)
+              .join(" · ")}
+          />
+        ) : null}
       </div>
     </div>
   );

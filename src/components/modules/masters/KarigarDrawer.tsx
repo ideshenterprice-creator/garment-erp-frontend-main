@@ -4,9 +4,9 @@ import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { KarigarPaymentType, KarigarProfile } from "@/types";
-import { mockOperations, mockParties } from "@/mock/masters";
+import type { CreateKarigarPayload, KarigarProfile, OperationStage } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import {
+  createKarigar,
+  getKarigars,
+  getOperations,
+  getParties,
+  updateKarigar,
+} from "@/services/masters.service";
 
 const karigarSchema = z
   .object({
@@ -26,12 +35,13 @@ const karigarSchema = z
     paymentType: z.enum(["PIECE_RATE", "WEEKLY_SALARY", "BOTH"]),
     weeklySalary: z.number().min(0).optional(),
     operationIds: z.array(z.string()).optional(),
-    isActive: z.boolean(),
   })
   .superRefine((values, ctx) => {
     if (
       (values.paymentType === "WEEKLY_SALARY" || values.paymentType === "BOTH") &&
-      (values.weeklySalary === undefined || Number.isNaN(values.weeklySalary))
+      (values.weeklySalary === undefined ||
+        Number.isNaN(values.weeklySalary) ||
+        values.weeklySalary <= 0)
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -57,7 +67,6 @@ interface KarigarDrawerProps {
   open: boolean;
   onClose: () => void;
   karigar?: KarigarProfile | null;
-  onSave: (karigar: KarigarProfile) => void;
 }
 
 const defaultValues: KarigarFormValues = {
@@ -65,20 +74,80 @@ const defaultValues: KarigarFormValues = {
   paymentType: "PIECE_RATE",
   weeklySalary: 0,
   operationIds: [],
-  isActive: true,
 };
 
-export function KarigarDrawer({
-  open,
-  onClose,
-  karigar,
-  onSave,
-}: KarigarDrawerProps) {
+const STAGE_ORDER: OperationStage[] = [
+  "CUTTING",
+  "PRINTING",
+  "COLORING",
+  "STITCHING",
+  "FINISHING",
+];
+
+export function KarigarDrawer({ open, onClose, karigar }: KarigarDrawerProps) {
   const isEdit = Boolean(karigar);
-  const karigarParties = useMemo(
-    () => mockParties.filter((party) => party.type === "KARIGAR"),
-    []
-  );
+  const queryClient = useQueryClient();
+
+  const partiesQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PARTIES, { type: "KARIGAR", limit: 100 }],
+    queryFn: () => getParties({ type: "KARIGAR", limit: 100 }),
+    enabled: open,
+  });
+
+  const existingKarigarsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.KARIGARS, { limit: 100 }],
+    queryFn: () => getKarigars({ limit: 100 }),
+    enabled: open && !isEdit,
+  });
+
+  const operationsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.OPERATIONS, { limit: 100 }],
+    queryFn: () => getOperations({ limit: 100 }),
+    enabled: open,
+  });
+
+  const linkedPartyIds = useMemo(() => {
+    const profiles = existingKarigarsQuery.data?.data.data ?? [];
+    return new Set(profiles.map((profile) => profile.partyId));
+  }, [existingKarigarsQuery.data]);
+
+  const availableParties = useMemo(() => {
+    const parties = partiesQuery.data?.data.data ?? [];
+    if (isEdit && karigar) {
+      const current = parties.find((party) => party.id === karigar.partyId);
+      const others = parties.filter(
+        (party) => !linkedPartyIds.has(party.id) || party.id === karigar.partyId
+      );
+      if (current && !others.some((party) => party.id === current.id)) {
+        return [current, ...others];
+      }
+      return others.length ? others : current ? [current] : parties;
+    }
+    return parties.filter((party) => !linkedPartyIds.has(party.id));
+  }, [partiesQuery.data, linkedPartyIds, isEdit, karigar]);
+
+  const operations = operationsQuery.data?.data.data ?? [];
+
+  const operationsByStage = useMemo(() => {
+    const grouped = new Map<OperationStage, typeof operations>();
+    for (const stage of STAGE_ORDER) {
+      grouped.set(stage, []);
+    }
+    for (const operation of operations) {
+      const list = grouped.get(operation.stage) ?? [];
+      list.push(operation);
+      grouped.set(operation.stage, list);
+    }
+    return STAGE_ORDER.map((stage) => ({
+      stage,
+      items: grouped.get(stage) ?? [],
+    })).filter((group) => group.items.length > 0);
+  }, [operations]);
+
+  const dropdownsLoading =
+    partiesQuery.isLoading ||
+    operationsQuery.isLoading ||
+    (!isEdit && existingKarigarsQuery.isLoading);
 
   const {
     register,
@@ -86,7 +155,7 @@ export function KarigarDrawer({
     reset,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<KarigarFormValues>({
     resolver: zodResolver(karigarSchema),
     defaultValues,
@@ -95,7 +164,6 @@ export function KarigarDrawer({
   const paymentType = watch("paymentType");
   const partyId = watch("partyId");
   const operationIds = watch("operationIds") ?? [];
-  const isActive = watch("isActive");
 
   useEffect(() => {
     if (!open) return;
@@ -103,17 +171,16 @@ export function KarigarDrawer({
       reset({
         partyId: karigar.partyId,
         paymentType: karigar.paymentType,
-        weeklySalary: karigar.weeklySalary,
-        operationIds: karigar.operations.map((item) => item.operationId),
-        isActive: karigar.isActive,
+        weeklySalary: Number(karigar.weeklySalary ?? 0),
+        operationIds: karigar.operations.map((item) => item.id),
       });
     } else {
       reset({
         ...defaultValues,
-        partyId: karigarParties[0]?.id ?? "",
+        partyId: "",
       });
     }
-  }, [open, karigar, reset, karigarParties]);
+  }, [open, karigar, reset]);
 
   function toggleOperation(operationId: string) {
     const next = operationIds.includes(operationId)
@@ -122,38 +189,62 @@ export function KarigarDrawer({
     setValue("operationIds", next, { shouldValidate: true });
   }
 
+  const addKarigarMutation = useMutation({
+    mutationFn: (data: CreateKarigarPayload) => createKarigar(data),
+    onSuccess: () => {
+      toast.success("Karigar profile created.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.KARIGARS });
+      onClose();
+      reset(defaultValues);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to create karigar profile."));
+    },
+  });
+
+  const editKarigarMutation = useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<CreateKarigarPayload>;
+    }) => updateKarigar(id, data),
+    onSuccess: () => {
+      toast.success("Karigar profile updated.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.KARIGARS });
+      if (karigar?.id) {
+        void queryClient.invalidateQueries({
+          queryKey: [...QUERY_KEYS.KARIGARS, karigar.id],
+        });
+      }
+      onClose();
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to update karigar profile."));
+    },
+  });
+
+  const isPending =
+    addKarigarMutation.isPending || editKarigarMutation.isPending;
+
   function onSubmit(values: KarigarFormValues) {
-    const party =
-      mockParties.find((item) => item.id === values.partyId) ??
-      karigar?.party ??
-      mockParties[0];
-
-    const operations = mockOperations
-      .filter((operation) => (values.operationIds ?? []).includes(operation.id))
-      .map((operation, index) => ({
-        id: `ko-${Date.now()}-${index}`,
-        karigarProfileId: karigar?.id ?? "new",
-        operationId: operation.id,
-        operation,
-      }));
-
-    const next: KarigarProfile = {
-      id: karigar?.id ?? `kar-${Date.now()}`,
+    const payload: CreateKarigarPayload = {
       partyId: values.partyId,
-      party,
-      paymentType: values.paymentType as KarigarPaymentType,
-      weeklySalary:
-        values.paymentType === "PIECE_RATE" ? 0 : (values.weeklySalary ?? 0),
-      isActive: values.isActive,
-      operations:
-        values.paymentType === "WEEKLY_SALARY" ? [] : operations,
+      paymentType: values.paymentType,
+      ...(values.paymentType === "WEEKLY_SALARY" || values.paymentType === "BOTH"
+        ? { weeklySalary: values.weeklySalary }
+        : {}),
+      ...(values.paymentType === "PIECE_RATE" || values.paymentType === "BOTH"
+        ? { operationIds: values.operationIds }
+        : { operationIds: [] }),
     };
 
-    onSave(next);
-    toast.success(
-      isEdit ? "Karigar profile updated successfully" : "Karigar profile saved successfully"
-    );
-    onClose();
+    if (isEdit && karigar) {
+      editKarigarMutation.mutate({ id: karigar.id, data: payload });
+      return;
+    }
+    addKarigarMutation.mutate(payload);
   }
 
   const showSalary =
@@ -169,16 +260,20 @@ export function KarigarDrawer({
       description="Link a party and configure payment rules."
       footer={
         <div className="flex items-center justify-end gap-3">
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
           <Button
             type="submit"
             form="karigar-form"
-            disabled={isSubmitting}
+            disabled={isPending || dropdownsLoading}
             className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
           >
-            {isEdit ? "Update Profile" : "Save Profile"}
+            {isPending
+              ? "Saving..."
+              : isEdit
+                ? "Update Profile"
+                : "Save Profile"}
           </Button>
         </div>
       }
@@ -197,12 +292,19 @@ export function KarigarDrawer({
             onValueChange={(value) =>
               setValue("partyId", value, { shouldValidate: true })
             }
+            disabled={dropdownsLoading || isEdit}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select karigar party" />
+              <SelectValue
+                placeholder={
+                  dropdownsLoading
+                    ? "Loading parties..."
+                    : "Select karigar party"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
-              {karigarParties.map((party) => (
+              {availableParties.map((party) => (
                 <SelectItem key={party.id} value={party.id}>
                   {party.name}
                 </SelectItem>
@@ -211,6 +313,12 @@ export function KarigarDrawer({
           </Select>
           {errors.partyId ? (
             <p className="text-sm text-destructive">{errors.partyId.message}</p>
+          ) : null}
+          {!dropdownsLoading && availableParties.length === 0 && !isEdit ? (
+            <p className="text-xs text-muted-foreground">
+              No available KARIGAR parties. Create a party first, or all are
+              already linked.
+            </p>
           ) : null}
         </div>
 
@@ -260,31 +368,44 @@ export function KarigarDrawer({
             <Label>
               Assigned Operations <span className="text-red-500">*</span>
             </Label>
-            <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto rounded-lg border border-slate-200 p-3">
-              {mockOperations.map((operation) => {
-                const checked = operationIds.includes(operation.id);
-                return (
-                  <label
-                    key={operation.id}
-                    className={cn(
-                      "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm",
-                      checked ? "bg-slate-100" : "hover:bg-slate-50"
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-[#1b3a3a]"
-                      checked={checked}
-                      onChange={() => toggleOperation(operation.id)}
-                    />
-                    <span className="flex-1">{operation.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      ₹{operation.ratePerPiece.toFixed(2)}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
+            {dropdownsLoading ? (
+              <p className="text-sm text-muted-foreground">Loading operations...</p>
+            ) : (
+              <div className="grid max-h-56 grid-cols-1 gap-3 overflow-y-auto rounded-lg border border-slate-200 p-3">
+                {operationsByStage.map((group) => (
+                  <div key={group.stage}>
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      {group.stage.charAt(0) + group.stage.slice(1).toLowerCase()}
+                    </p>
+                    <div className="flex flex-col gap-1">
+                      {group.items.map((operation) => {
+                        const checked = operationIds.includes(operation.id);
+                        return (
+                          <label
+                            key={operation.id}
+                            className={cn(
+                              "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm",
+                              checked ? "bg-slate-100" : "hover:bg-slate-50"
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              className="size-4 accent-[#1b3a3a]"
+                              checked={checked}
+                              onChange={() => toggleOperation(operation.id)}
+                            />
+                            <span className="flex-1">{operation.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              ₹{Number(operation.ratePerPiece).toFixed(2)}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             {errors.operationIds ? (
               <p className="text-sm text-destructive">
                 {errors.operationIds.message}
@@ -292,32 +413,6 @@ export function KarigarDrawer({
             ) : null}
           </div>
         ) : null}
-
-        <section className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-          <div>
-            <p className="text-sm font-medium text-slate-900">Active Status</p>
-            <p className="text-xs text-muted-foreground">
-              Inactive karigars are hidden from production assignment.
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isActive}
-            onClick={() => setValue("isActive", !isActive)}
-            className={cn(
-              "relative h-6 w-11 rounded-full transition-colors",
-              isActive ? "bg-[#1b3a3a]" : "bg-slate-300"
-            )}
-          >
-            <span
-              className={cn(
-                "absolute top-0.5 size-5 rounded-full bg-white transition-transform",
-                isActive ? "left-5" : "left-0.5"
-              )}
-            />
-          </button>
-        </section>
       </form>
     </DrawerForm>
   );

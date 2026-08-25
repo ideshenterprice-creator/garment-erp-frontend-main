@@ -1,18 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
-import {
-  generateNextPONumber,
-  mockBuyers,
-  mockPurchaseOrders,
-  PAYMENT_TERMS_OPTIONS,
-} from "@/mock/purchaseOrders";
+import type { CreatePurchaseOrderPayload } from "@/types";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import {
   createEmptyPOItem,
@@ -31,10 +27,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ROUTES } from "@/constants/routes";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { PAYMENT_TERMS_OPTIONS } from "@/lib/purchaseOrders";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { getParties } from "@/services/masters.service";
+import { createPurchaseOrder } from "@/services/purchaseOrders.service";
 
 const poFormSchema = z
   .object({
-    buyerId: z.string().min(1, "Buyer name is required"),
+    buyerId: z.string().uuid("Buyer is required"),
     buyerPoReference: z.string().min(1, "Buyer PO reference is required"),
     orderDate: z.string().min(1, "Order date is required"),
     deliveryDate: z.string().min(1, "Delivery date is required"),
@@ -58,54 +59,44 @@ const poFormSchema = z
 
 type POFormValues = z.infer<typeof poFormSchema>;
 
+function toIsoDate(dateStr: string): string {
+  return new Date(`${dateStr}T00:00:00.000Z`).toISOString();
+}
+
+function todayInputValue(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function NewPOForm() {
   const router = useRouter();
-  const poNumber = useMemo(
-    () => generateNextPONumber(mockPurchaseOrders),
-    []
-  );
-  const [items, setItems] = useState<POItemFormRow[]>([
-    {
-      ...createEmptyPOItem(),
-      designNumber: "D-42",
-      garmentType: "Baby Bodysuit",
-      color: "White",
-      qty_0_3M: 100,
-      qty_3_6M: 150,
-      qty_6_9M: 200,
-      qty_9_12M: 200,
-      qty_12_18M: 150,
-      qty_18_24M: 100,
-    },
-    {
-      ...createEmptyPOItem(),
-      designNumber: "D-43",
-      garmentType: "Baby Romper",
-      color: "Blue",
-      qty_0_3M: 150,
-      qty_3_6M: 200,
-      qty_6_9M: 250,
-      qty_9_12M: 300,
-      qty_12_18M: 250,
-      qty_18_24M: 150,
-    },
-  ]);
+  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+  const presetBuyerId = searchParams.get("buyerId");
+
+  const [items, setItems] = useState<POItemFormRow[]>([createEmptyPOItem()]);
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
   const [discardOpen, setDiscardOpen] = useState(false);
+
+  const buyersQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PARTIES, { type: "BUYER", limit: 100 }],
+    queryFn: () => getParties({ type: "BUYER", limit: 100 }),
+  });
+
+  const buyers = buyersQuery.data?.data.data ?? [];
 
   const {
     register,
     handleSubmit,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<POFormValues>({
     resolver: zodResolver(poFormSchema),
     defaultValues: {
-      buyerId: "buyer-global",
+      buyerId: "",
       buyerPoReference: "",
-      orderDate: "2024-10-25",
-      deliveryDate: "2024-12-15",
+      orderDate: todayInputValue(),
+      deliveryDate: "",
       shippingDestination: "",
       paymentTerms: PAYMENT_TERMS_OPTIONS[0],
       specialInstructions: "",
@@ -115,6 +106,30 @@ export function NewPOForm() {
   const buyerId = watch("buyerId");
   const paymentTerms = watch("paymentTerms");
   const totalDesigns = items.length;
+
+  useEffect(() => {
+    if (presetBuyerId) {
+      setValue("buyerId", presetBuyerId, { shouldValidate: true });
+    }
+  }, [presetBuyerId, setValue]);
+
+  const createPOMutation = useMutation({
+    mutationFn: (data: CreatePurchaseOrderPayload) => createPurchaseOrder(data),
+    onSuccess: (response) => {
+      toast.success(
+        `PO ${response.data.poNumber} created successfully.`
+      );
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.PURCHASE_ORDERS,
+      });
+      router.push(ROUTES.PURCHASE_ORDERS.DETAIL(response.data.id));
+    },
+    onError: (error) => {
+      toast.error(
+        getErrorMessage(error, "Failed to create purchase order.")
+      );
+    },
+  });
 
   function validateItems(): boolean {
     const nextErrors: Record<string, string> = {};
@@ -129,6 +144,9 @@ export function NewPOForm() {
       }
       if (!item.garmentType.trim()) {
         nextErrors[`items.${index}.garmentType`] = "Garment type is required";
+      }
+      if (!item.color.trim()) {
+        nextErrors[`items.${index}.color`] = "Color is required";
       }
       const total =
         item.qty_0_3M +
@@ -147,11 +165,34 @@ export function NewPOForm() {
     return Object.keys(nextErrors).length === 0;
   }
 
-  function onSubmit() {
+  function onSubmit(values: POFormValues) {
     if (!validateItems()) return;
-    toast.success("Purchase Order created successfully");
-    router.push(ROUTES.PURCHASE_ORDERS.ROOT);
+
+    const payload: CreatePurchaseOrderPayload = {
+      buyerId: values.buyerId,
+      buyerPoReference: values.buyerPoReference,
+      orderDate: toIsoDate(values.orderDate),
+      deliveryDate: toIsoDate(values.deliveryDate),
+      shippingDestination: values.shippingDestination,
+      paymentTerms: values.paymentTerms,
+      specialInstructions: values.specialInstructions || undefined,
+      items: items.map((item) => ({
+        designNumber: item.designNumber.trim(),
+        garmentType: item.garmentType.trim(),
+        color: item.color.trim(),
+        qty_0_3M: Number(item.qty_0_3M) || 0,
+        qty_3_6M: Number(item.qty_3_6M) || 0,
+        qty_6_9M: Number(item.qty_6_9M) || 0,
+        qty_9_12M: Number(item.qty_9_12M) || 0,
+        qty_12_18M: Number(item.qty_12_18M) || 0,
+        qty_18_24M: Number(item.qty_18_24M) || 0,
+      })),
+    };
+
+    createPOMutation.mutate(payload);
   }
+
+  const isPending = createPOMutation.isPending;
 
   return (
     <div>
@@ -169,13 +210,18 @@ export function NewPOForm() {
           <Button
             type="submit"
             form="new-po-form"
-            disabled={isSubmitting}
+            disabled={isPending || buyersQuery.isLoading}
             className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
           >
             <Check className="size-4" />
-            Save PO
+            {isPending ? "Saving..." : "Save PO"}
           </Button>
-          <Button type="button" variant="ghost" onClick={() => setDiscardOpen(true)}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setDiscardOpen(true)}
+            disabled={isPending}
+          >
             Discard
           </Button>
         </div>
@@ -188,7 +234,12 @@ export function NewPOForm() {
               <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 PO Number
               </Label>
-              <Input value={poNumber} readOnly disabled className="bg-slate-50" />
+              <Input
+                value="Auto-generated"
+                readOnly
+                disabled
+                className="bg-slate-50"
+              />
             </div>
 
             <div className="flex flex-col gap-2">
@@ -211,16 +262,23 @@ export function NewPOForm() {
                 Buyer Name
               </Label>
               <Select
-                value={buyerId}
+                value={buyerId || undefined}
                 onValueChange={(value) =>
                   setValue("buyerId", value, { shouldValidate: true })
                 }
+                disabled={buyersQuery.isLoading}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select buyer" />
+                  <SelectValue
+                    placeholder={
+                      buyersQuery.isLoading
+                        ? "Loading buyers..."
+                        : "Select buyer"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockBuyers.map((buyer) => (
+                  {buyers.map((buyer) => (
                     <SelectItem key={buyer.id} value={buyer.id}>
                       {buyer.name}
                     </SelectItem>
@@ -328,19 +386,19 @@ export function NewPOForm() {
 
         <Button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isPending || buyersQuery.isLoading}
           className="h-12 w-full bg-[#1b3a3a] text-base text-white hover:bg-[#1b3a3a]/90"
         >
           <Check className="size-4" />
-          Save Purchase Order
+          {isPending ? "Saving..." : "Save Purchase Order"}
         </Button>
       </form>
 
       <ConfirmDialog
         open={discardOpen}
         onClose={() => setDiscardOpen(false)}
-        title="Discard changes?"
-        description="Are you sure you want to discard? Unsaved changes will be lost."
+        title="Discard this purchase order?"
+        description="All entered data will be lost."
         confirmLabel="Discard"
         onConfirm={() => router.push(ROUTES.PURCHASE_ORDERS.ROOT)}
       />

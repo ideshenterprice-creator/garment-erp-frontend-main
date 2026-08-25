@@ -1,7 +1,7 @@
 import type { Party, POItem, PurchaseOrder, PurchaseOrderStatus } from "@/types";
 import { mockParties } from "@/mock/masters";
 
-export interface POProductionStage {
+export interface MockPOProductionStage {
   stage: "Cutting" | "Printing" | "Coloring" | "Stitching" | "Finishing";
   issued: number;
   done: number;
@@ -9,7 +9,7 @@ export interface POProductionStage {
   status: "DONE" | "IN_PROGRESS" | "PENDING";
 }
 
-export interface POFabricLot {
+export interface MockPOFabricLot {
   id: string;
   lotNumber: string;
   supplierName: string;
@@ -18,9 +18,10 @@ export interface POFabricLot {
   status: "RECEIVED" | "TO_PURCHASE";
 }
 
-export interface MockPurchaseOrder extends PurchaseOrder {
-  productionStages?: POProductionStage[];
-  fabricLots?: POFabricLot[];
+export interface MockPurchaseOrder
+  extends Omit<PurchaseOrder, "fabricLots" | "productionProgress"> {
+  productionStages?: MockPOProductionStage[];
+  mockFabricLots?: MockPOFabricLot[];
   fabricNeededKg?: number;
 }
 
@@ -170,7 +171,7 @@ export const mockPurchaseOrders: MockPurchaseOrder[] = [
         status: "PENDING",
       },
     ],
-    fabricLots: [
+    mockFabricLots: [
       {
         id: "lot-1",
         lotNumber: "LOT-2401",

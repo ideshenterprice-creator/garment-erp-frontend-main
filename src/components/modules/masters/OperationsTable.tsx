@@ -1,8 +1,7 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
-import { format } from "date-fns";
-import type { MockOperation } from "@/mock/masters";
+import { Ban, Pencil } from "lucide-react";
+import type { Operation } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
@@ -16,13 +15,18 @@ import {
 } from "@/components/ui/table";
 
 interface OperationsTableProps {
-  operations: MockOperation[];
-  onEdit: (operation: MockOperation) => void;
-  onDelete: (operation: MockOperation) => void;
+  operations: Operation[];
+  onEdit: (operation: Operation) => void;
+  onToggleStatus: (operation: Operation) => void;
   onAdd?: () => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  emptyActionLabel?: string;
+  onEmptyAction?: () => void;
+  emptyActionIsClear?: boolean;
 }
 
-function stageVariant(stage: MockOperation["stage"]) {
+function stageVariant(stage: Operation["stage"]) {
   switch (stage) {
     case "CUTTING":
       return "cutting" as const;
@@ -37,23 +41,40 @@ function stageVariant(stage: MockOperation["stage"]) {
   }
 }
 
-function stageLabel(stage: MockOperation["stage"]) {
+function stageLabel(stage: Operation["stage"]) {
   return stage.charAt(0) + stage.slice(1).toLowerCase();
 }
 
 export function OperationsTable({
   operations,
   onEdit,
-  onDelete,
+  onToggleStatus,
   onAdd,
+  emptyTitle = "No operations found",
+  emptyDescription = "Add production operations and piece rates.",
+  emptyActionLabel = "Add Operation",
+  onEmptyAction,
+  emptyActionIsClear = false,
 }: OperationsTableProps) {
   if (operations.length === 0) {
     return (
       <EmptyState
-        title="No operations found"
-        description="Add production operations and piece rates."
-        actionLabel="Add Operation"
-        onAction={onAdd}
+        title={emptyTitle}
+        description={emptyDescription}
+        actionLabel={emptyActionIsClear ? undefined : emptyActionLabel}
+        onAction={emptyActionIsClear ? undefined : onEmptyAction ?? onAdd}
+        actionButton={
+          emptyActionIsClear && onEmptyAction ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4"
+              onClick={onEmptyAction}
+            >
+              Clear Filters
+            </Button>
+          ) : undefined
+        }
       />
     );
   }
@@ -62,9 +83,6 @@ export function OperationsTable({
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
         <h3 className="font-semibold text-slate-900">Live Rate Matrix</h3>
-        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-500">
-          Last Update: 2h ago
-        </span>
       </div>
       <div className="overflow-x-auto">
         <Table>
@@ -80,7 +98,7 @@ export function OperationsTable({
                 Rate (₹ / Pc)
               </TableHead>
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Last Updated
+                Status
               </TableHead>
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Actions
@@ -99,9 +117,14 @@ export function OperationsTable({
                     variant={stageVariant(operation.stage)}
                   />
                 </TableCell>
-                <TableCell>₹ {operation.ratePerPiece.toFixed(2)}</TableCell>
                 <TableCell>
-                  {format(new Date(operation.lastUpdated), "MMM dd, yyyy")}
+                  ₹ {Number(operation.ratePerPiece).toFixed(2)}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge
+                    label={operation.isActive ? "ACTIVE" : "INACTIVE"}
+                    variant={operation.isActive ? "active" : "inactive"}
+                  />
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-0.5">
@@ -119,9 +142,10 @@ export function OperationsTable({
                       variant="ghost"
                       size="icon"
                       className="size-8 text-red-500 hover:bg-red-50"
-                      onClick={() => onDelete(operation)}
+                      title={operation.isActive ? "Deactivate" : "Activate"}
+                      onClick={() => onToggleStatus(operation)}
                     >
-                      <Trash2 className="size-4" />
+                      <Ban className="size-4" />
                     </Button>
                   </div>
                 </TableCell>

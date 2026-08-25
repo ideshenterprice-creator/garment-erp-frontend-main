@@ -501,20 +501,7 @@ export const mockKarigars: KarigarProfile[] = [
     paymentType: "PIECE_RATE",
     weeklySalary: 0,
     isActive: true,
-    operations: [
-      {
-        id: "ko-1",
-        karigarProfileId: "kar-1",
-        operationId: "op-5",
-        operation: mockOperations[4],
-      },
-      {
-        id: "ko-2",
-        karigarProfileId: "kar-1",
-        operationId: "op-6",
-        operation: mockOperations[5],
-      },
-    ],
+    operations: [mockOperations[4], mockOperations[5]],
   },
   {
     id: "kar-2",
@@ -523,30 +510,18 @@ export const mockKarigars: KarigarProfile[] = [
     paymentType: "BOTH",
     weeklySalary: 4500,
     isActive: true,
-    operations: [
-      {
-        id: "ko-3",
-        karigarProfileId: "kar-2",
-        operationId: "op-7",
-        operation: mockOperations[6],
-      },
-      {
-        id: "ko-4",
-        karigarProfileId: "kar-2",
-        operationId: "op-9",
-        operation: mockOperations[8],
-      },
-    ],
+    operations: [mockOperations[6], mockOperations[8]],
   },
   {
     id: "kar-3",
     partyId: "party-6",
     party: {
-      ...mockParties[5],
       id: "party-9",
       partyNumber: "PTY-009",
       name: "Imran Stitcher",
       contact: "+91 98765 43218",
+      type: "KARIGAR",
+      city: mockParties[5].city,
     },
     paymentType: "WEEKLY_SALARY",
     weeklySalary: 5200,
@@ -557,23 +532,16 @@ export const mockKarigars: KarigarProfile[] = [
     id: "kar-4",
     partyId: "party-7",
     party: {
-      ...mockParties[6],
       id: "party-10",
       partyNumber: "PTY-010",
       name: "Farhan Finisher",
       contact: "+91 98765 43219",
-      isActive: false,
+      type: "KARIGAR",
+      city: mockParties[6].city,
     },
     paymentType: "PIECE_RATE",
     weeklySalary: 0,
     isActive: false,
-    operations: [
-      {
-        id: "ko-5",
-        karigarProfileId: "kar-4",
-        operationId: "op-10",
-        operation: mockOperations[9],
-      },
-    ],
+    operations: [mockOperations[9]],
   },
 ];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 interface ReturnBillDialogProps {
   open: boolean;
   billNumber?: string;
+  isPending?: boolean;
   onClose: () => void;
   onConfirm: (reason: string) => void;
 }
@@ -23,11 +24,19 @@ interface ReturnBillDialogProps {
 export function ReturnBillDialog({
   open,
   billNumber,
+  isPending = false,
   onClose,
   onConfirm,
 }: ReturnBillDialogProps) {
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!open) {
+      setReason("");
+      setError("");
+    }
+  }, [open]);
 
   function handleConfirm() {
     if (!reason.trim()) {
@@ -35,12 +44,10 @@ export function ReturnBillDialog({
       return;
     }
     onConfirm(reason.trim());
-    setReason("");
-    setError("");
-    onClose();
   }
 
   function handleClose() {
+    if (isPending) return;
     setReason("");
     setError("");
     onClose();
@@ -66,6 +73,7 @@ export function ReturnBillDialog({
             rows={3}
             placeholder="Enter return reason..."
             value={reason}
+            disabled={isPending}
             onChange={(event) => {
               setReason(event.target.value);
               if (error) setError("");
@@ -74,11 +82,21 @@ export function ReturnBillDialog({
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </div>
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button type="button" variant="outline" onClick={handleClose}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleClose}
+            disabled={isPending}
+          >
             Cancel
           </Button>
-          <Button type="button" variant="destructive" onClick={handleConfirm}>
-            Confirm Return
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleConfirm}
+            disabled={isPending}
+          >
+            {isPending ? "Returning..." : "Confirm Return"}
           </Button>
         </DialogFooter>
       </DialogContent>

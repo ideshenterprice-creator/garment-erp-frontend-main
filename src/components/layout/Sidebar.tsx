@@ -21,6 +21,7 @@ import {
 import { sidebarConfig } from "@/constants/sidebarConfig";
 import { ROUTES } from "@/constants/routes";
 import { useAuthStore } from "@/store/authStore";
+import { logout } from "@/services/auth.service";
 import { cn } from "@/lib/utils";
 
 const iconMap: Record<string, LucideIcon> = {
@@ -49,12 +50,13 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
+  const clearAuth = useAuthStore((state) => state.logout);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     Masters: true,
   });
 
-  const displayName = user?.name ?? "Raj Sharma";
+  const displayName = user?.name ?? "User";
   const displayRole = user?.role === "TEAM_MEMBER" ? "Team Member" : "Admin";
 
   function isActive(href: string): boolean {
@@ -66,10 +68,18 @@ export function Sidebar() {
     return subItems?.some((item) => isActive(item.href)) ?? false;
   }
 
-  function handleLogout() {
-    logout();
-    document.cookie = "ff_auth=; path=/; Max-Age=0; SameSite=Lax";
-    router.push(ROUTES.AUTH.LOGIN);
+  async function handleLogout() {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch {
+      // Always clear local session even if API fails
+    } finally {
+      clearAuth();
+      router.push(ROUTES.AUTH.LOGIN);
+      setIsLoggingOut(false);
+    }
   }
 
   return (
@@ -177,11 +187,13 @@ export function Sidebar() {
           </div>
           <button
             type="button"
-            onClick={handleLogout}
-            className="rounded-md p-1.5 text-white/70 hover:bg-white/10 hover:text-white"
+            onClick={() => void handleLogout()}
+            disabled={isLoggingOut}
+            className="rounded-md p-1.5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-50"
             aria-label="Logout"
+            aria-busy={isLoggingOut}
           >
-            <LogOut className="size-4" />
+            <LogOut className={cn("size-4", isLoggingOut && "animate-pulse")} />
           </button>
         </div>
       </div>

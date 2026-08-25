@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/store/authStore";
 import { ROUTES } from "@/constants/routes";
+import { login } from "@/services/auth.service";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 const loginSchema = z.object({
   email: z.string().min(1, "Email is required").email("Enter a valid email address"),
@@ -20,9 +22,6 @@ const loginSchema = z.object({
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
-
-const TEMP_EMAIL = "abhishek@gmail.com";
-const TEMP_PASSWORD = "12345678";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,35 +42,28 @@ export default function LoginPage() {
   });
 
   async function onSubmit(values: LoginFormValues) {
-    // TODO: Replace hardcoded auth with
-    // real API call to POST /api/auth/login
-    // Update authStore with real user and token
-    // Remove fake credentials and delay
-
     setIsLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      const response = await login(values.email, values.password);
+      const { accessToken, user } = response.data;
 
-      if (values.email === TEMP_EMAIL && values.password === TEMP_PASSWORD) {
-        const fakeUser = {
-          id: "temp-admin-001",
-          name: "Abhishek",
-          email: "abhishek@gmail.com",
-          role: "ADMIN" as const,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-        };
-        const fakeToken = "temp-access-token-admin";
+      setAuth(
+        {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
+        accessToken
+      );
 
-        setAuth(fakeUser, fakeToken);
-        document.cookie = "ff_auth=1; path=/; SameSite=Lax";
-        toast.success("Welcome back, Abhishek!");
-        router.push(ROUTES.MASTERS.PARTY);
-        return;
-      }
-
-      toast.error("Invalid email or password");
+      toast.success(`Welcome back, ${user.name}!`);
+      router.push(ROUTES.MASTERS.PARTY);
+    } catch (error) {
+      toast.error(
+        getApiErrorMessage(error, "Invalid email or password")
+      );
     } finally {
       setIsLoading(false);
     }

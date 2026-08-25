@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import type { MockTeamMember } from "@/mock/team";
+import type { TeamMember } from "@/services/team.service";
 import { getMemberInitials } from "@/mock/team";
 import { EmptyState } from "@/components/common/EmptyState";
 import { InviteStatusBadge } from "@/components/modules/team/InviteStatusBadge";
@@ -25,17 +25,17 @@ import {
 import { cn } from "@/lib/utils";
 
 interface TeamMembersTableProps {
-  members: MockTeamMember[];
+  members: TeamMember[];
   currentUserId?: string;
   currentUserEmail?: string;
   onInvite?: () => void;
-  onDeactivate: (member: MockTeamMember) => void;
-  onResend: (member: MockTeamMember) => void;
-  onReactivate: (member: MockTeamMember) => void;
+  onDeactivate: (member: TeamMember) => void;
+  onResend: (member: TeamMember) => void;
+  onReactivate: (member: TeamMember) => void;
 }
 
 function isSelf(
-  member: MockTeamMember,
+  member: TeamMember,
   currentUserId?: string,
   currentUserEmail?: string
 ): boolean {

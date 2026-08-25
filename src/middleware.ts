@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { ROUTES } from "@/constants/routes";
 
-const AUTH_COOKIE = "ff_auth";
+const REFRESH_COOKIE = "refreshToken";
 
 const publicPaths = [ROUTES.AUTH.LOGIN, ROUTES.AUTH.ACCEPT_INVITE];
 
@@ -33,15 +33,20 @@ function isProtectedPath(pathname: string): boolean {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isAuthenticated = Boolean(request.cookies.get(AUTH_COOKIE)?.value);
+  const hasRefreshToken = Boolean(
+    request.cookies.get(REFRESH_COOKIE)?.value
+  );
 
-  if (isAuthenticated && pathname === ROUTES.AUTH.LOGIN) {
-    return NextResponse.redirect(
-      new URL(ROUTES.MASTERS.PARTY, request.url)
-    );
+  if (
+    hasRefreshToken &&
+    (pathname === ROUTES.AUTH.LOGIN ||
+      pathname === ROUTES.AUTH.ACCEPT_INVITE ||
+      pathname.startsWith(`${ROUTES.AUTH.ACCEPT_INVITE}/`))
+  ) {
+    return NextResponse.redirect(new URL(ROUTES.MASTERS.PARTY, request.url));
   }
 
-  if (!isAuthenticated && isProtectedPath(pathname) && !isPublicPath(pathname)) {
+  if (!hasRefreshToken && isProtectedPath(pathname) && !isPublicPath(pathname)) {
     const loginUrl = new URL(ROUTES.AUTH.LOGIN, request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);

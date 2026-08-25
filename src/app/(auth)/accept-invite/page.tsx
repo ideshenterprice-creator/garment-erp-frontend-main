@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROUTES } from "@/constants/routes";
+import { acceptInvite } from "@/services/auth.service";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 const schema = z
   .object({
@@ -27,8 +29,7 @@ type FormValues = z.infer<typeof schema>;
 function AcceptInviteForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const email = searchParams.get("email") ?? "newuser@fabricflow.com";
-  const token = searchParams.get("token") ?? "missing-token";
+  const token = searchParams.get("token");
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -47,14 +48,40 @@ function AcceptInviteForm() {
     },
   });
 
-  async function onSubmit() {
-    // TODO: Replace with real API call
-    // POST /api/auth/accept-invite
+  if (!token) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white px-6">
+        <div className="max-w-md text-center">
+          <h2 className="text-2xl font-semibold text-slate-900">
+            Invalid invite link
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Invalid invite link. Please contact your administrator.
+          </p>
+          <Button
+            type="button"
+            className="mt-8 h-11 w-full bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
+            onClick={() => router.push(ROUTES.AUTH.LOGIN)}
+          >
+            Go to Login
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  async function onSubmit(values: FormValues) {
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      const response = await acceptInvite(
+        token!,
+        values.password,
+        values.confirmPassword
+      );
       setSuccess(true);
-      toast.success("Account activated!");
+      toast.success(response.message || "Account activated!");
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, "Could not activate account"));
     } finally {
       setIsLoading(false);
     }
@@ -89,10 +116,10 @@ function AcceptInviteForm() {
                 <CheckCircle2 className="size-8" />
               </div>
               <h2 className="text-2xl font-semibold text-slate-900">
-                Account activated!
+                Account activated successfully!
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                You can now log in with your email and password.
+                You can now log in.
               </p>
               <Button
                 type="button"
@@ -119,16 +146,6 @@ function AcceptInviteForm() {
                 className="flex flex-col gap-5"
                 noValidate
               >
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="invite-email">Email Address</Label>
-                  <Input
-                    id="invite-email"
-                    value={email}
-                    readOnly
-                    className="bg-slate-50"
-                  />
-                </div>
-
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="password">Create Password</Label>
                   <div className="relative">
@@ -199,12 +216,6 @@ function AcceptInviteForm() {
                   {isLoading ? "Activating..." : "Activate Account"}
                 </Button>
               </form>
-
-              <div className="mt-6 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2">
-                <p className="text-xs text-muted-foreground">
-                  Dev: Token = {token}
-                </p>
-              </div>
             </>
           )}
         </div>

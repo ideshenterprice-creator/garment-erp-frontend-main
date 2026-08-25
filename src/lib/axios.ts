@@ -46,6 +46,18 @@ function processQueue(error: unknown, token: string | null = null) {
   failedQueue = [];
 }
 
+function isRefreshRequest(config?: AxiosRequestConfig): boolean {
+  const url = config?.url ?? "";
+  return url.includes("/auth/refresh");
+}
+
+function forceLogout() {
+  useAuthStore.getState().logout();
+  if (typeof window !== "undefined") {
+    window.location.href = ROUTES.AUTH.LOGIN;
+  }
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
@@ -53,7 +65,17 @@ api.interceptors.response.use(
       _retry?: boolean;
     };
 
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    if (error.response?.status !== 401 || !originalRequest) {
+      return Promise.reject(error);
+    }
+
+    // Refresh endpoint itself failed — do not retry
+    if (isRefreshRequest(originalRequest)) {
+      forceLogout();
+      return Promise.reject(error);
+    }
+
+    if (originalRequest._retry) {
       return Promise.reject(error);
     }
 
@@ -61,9 +83,10 @@ api.interceptors.response.use(
       return new Promise<string | null>((resolve, reject) => {
         failedQueue.push({ resolve, reject });
       }).then((token) => {
-        if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
+        if (!originalRequest.headers) {
+          originalRequest.headers = {};
         }
+        originalRequest.headers.Authorization = `Bearer ${token}`;
         return api(originalRequest);
       });
     }
@@ -82,17 +105,15 @@ api.interceptors.response.use(
       useAuthStore.getState().updateAccessToken(newToken);
       processQueue(null, newToken);
 
-      if (originalRequest.headers) {
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      if (!originalRequest.headers) {
+        originalRequest.headers = {};
       }
+      originalRequest.headers.Authorization = `Bearer ${newToken}`;
 
       return api(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError, null);
-      useAuthStore.getState().logout();
-      if (typeof window !== "undefined") {
-        window.location.href = ROUTES.AUTH.LOGIN;
-      }
+      forceLogout();
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;

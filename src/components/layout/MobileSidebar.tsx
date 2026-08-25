@@ -7,20 +7,30 @@ import { LogOut, Menu, X } from "lucide-react";
 import { sidebarConfig } from "@/constants/sidebarConfig";
 import { ROUTES } from "@/constants/routes";
 import { useAuthStore } from "@/store/authStore";
+import { logout } from "@/services/auth.service";
 import { cn } from "@/lib/utils";
 
 export function MobileSidebar() {
   const [open, setOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
+  const clearAuth = useAuthStore((state) => state.logout);
 
-  function handleLogout() {
-    logout();
-    document.cookie = "ff_auth=; path=/; Max-Age=0; SameSite=Lax";
-    router.push(ROUTES.AUTH.LOGIN);
-    setOpen(false);
+  async function handleLogout() {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch {
+      // Always clear local session even if API fails
+    } finally {
+      clearAuth();
+      router.push(ROUTES.AUTH.LOGIN);
+      setOpen(false);
+      setIsLoggingOut(false);
+    }
   }
 
   return (
@@ -44,7 +54,12 @@ export function MobileSidebar() {
       {open ? (
         <div className="border-t border-white/10 px-3 py-3">
           <ul className="flex flex-col gap-1">
-            {sidebarConfig.map((item) => (
+            {sidebarConfig.map((item) => {
+              if (item.adminOnly && user?.role === "TEAM_MEMBER") {
+                return null;
+              }
+
+              return (
               <li key={item.label}>
                 {item.subItems ? (
                   <div className="py-1">
@@ -85,19 +100,31 @@ export function MobileSidebar() {
                   </Link>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ul>
           <div className="mt-3 flex items-center justify-between rounded-lg bg-[#152e2e] px-3 py-2">
             <div>
               <p className="text-sm font-medium text-white">
-                {user?.name ?? "Raj Sharma"}
+                {user?.name ?? "User"}
               </p>
               <p className="text-xs text-white/55">
                 {user?.role === "TEAM_MEMBER" ? "Team Member" : "Admin"}
               </p>
             </div>
-            <button type="button" onClick={handleLogout} aria-label="Logout">
-              <LogOut className="size-4 text-white/70" />
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              disabled={isLoggingOut}
+              aria-label="Logout"
+              aria-busy={isLoggingOut}
+            >
+              <LogOut
+                className={cn(
+                  "size-4 text-white/70",
+                  isLoggingOut && "animate-pulse"
+                )}
+              />
             </button>
           </div>
         </div>

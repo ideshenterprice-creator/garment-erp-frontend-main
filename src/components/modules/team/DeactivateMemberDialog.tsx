@@ -10,11 +10,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import type { MockTeamMember } from "@/mock/team";
+import type { TeamMember } from "@/services/team.service";
 
 interface DeactivateMemberDialogProps {
   open: boolean;
-  member: MockTeamMember | null;
+  member: TeamMember | null;
+  isLoading?: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }
@@ -22,6 +23,7 @@ interface DeactivateMemberDialogProps {
 export function DeactivateMemberDialog({
   open,
   member,
+  isLoading = false,
   onClose,
   onConfirm,
 }: DeactivateMemberDialogProps) {
@@ -45,18 +47,21 @@ export function DeactivateMemberDialog({
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={isLoading}
+          >
             Cancel
           </Button>
           <Button
             type="button"
             variant="destructive"
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
+            disabled={isLoading}
+            onClick={onConfirm}
           >
-            Deactivate
+            {isLoading ? "Deactivating..." : "Deactivate"}
           </Button>
         </DialogFooter>
       </DialogContent>

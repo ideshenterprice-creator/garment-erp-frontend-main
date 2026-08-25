@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Copy } from "lucide-react";
 import { toast } from "sonner";
-import { createInviteLink, type MockTeamMember } from "@/mock/team";
 import {
   Dialog,
   DialogContent,
@@ -13,21 +13,35 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { resendInvite, type TeamMember } from "@/services/team.service";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 interface ResendInviteDialogProps {
   open: boolean;
-  member: MockTeamMember | null;
+  member: TeamMember | null;
   onClose: () => void;
-  onConfirm: () => void;
 }
 
 export function ResendInviteDialog({
   open,
   member,
   onClose,
-  onConfirm,
 }: ResendInviteDialogProps) {
+  const queryClient = useQueryClient();
   const [link, setLink] = useState<string | null>(null);
+
+  const resendMutation = useMutation({
+    mutationFn: (id: string) => resendInvite(id),
+    onSuccess: (response) => {
+      setLink(response.data.inviteLink ?? null);
+      toast.success(response.message || "Invite resent.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TEAM_MEMBERS });
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error));
+    },
+  });
 
   useEffect(() => {
     if (!open) {
@@ -46,15 +60,12 @@ export function ResendInviteDialog({
   }
 
   function handleResend() {
-    const nextLink = createInviteLink(member?.email);
-    setLink(nextLink);
-    onConfirm();
-    if (member) {
-      toast.success(`Invite resent to ${member.email}.`);
-    }
+    if (!member) return;
+    resendMutation.mutate(member.id);
   }
 
   function handleClose() {
+    if (resendMutation.isPending) return;
     setLink(null);
     onClose();
   }
@@ -82,7 +93,11 @@ export function ResendInviteDialog({
               </Button>
             </div>
             <DialogFooter>
-              <Button type="button" onClick={handleClose} className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90">
+              <Button
+                type="button"
+                onClick={handleClose}
+                className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
+              >
                 Done
               </Button>
             </DialogFooter>
@@ -99,15 +114,21 @@ export function ResendInviteDialog({
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2 sm:gap-0">
-              <Button type="button" variant="outline" onClick={handleClose}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                disabled={resendMutation.isPending}
+              >
                 Cancel
               </Button>
               <Button
                 type="button"
                 className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
                 onClick={handleResend}
+                disabled={resendMutation.isPending}
               >
-                Resend Invite
+                {resendMutation.isPending ? "Resending..." : "Resend Invite"}
               </Button>
             </DialogFooter>
           </>

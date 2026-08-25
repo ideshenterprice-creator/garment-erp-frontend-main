@@ -4,18 +4,18 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Copy, Mail } from "lucide-react";
 import { toast } from "sonner";
 import type { UserRole } from "@/types";
-import {
-  createInviteLink,
-  type MockTeamMember,
-} from "@/mock/team";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { inviteMember } from "@/services/team.service";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 const schema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -27,17 +27,16 @@ type FormValues = z.infer<typeof schema>;
 
 interface InviteMemberDrawerProps {
   open: boolean;
-  existing: MockTeamMember[];
+  existingEmails: string[];
   onClose: () => void;
-  onInvite: (member: MockTeamMember) => void;
 }
 
 export function InviteMemberDrawer({
   open,
-  existing,
+  existingEmails,
   onClose,
-  onInvite,
 }: InviteMemberDrawerProps) {
+  const queryClient = useQueryClient();
   const [successEmail, setSuccessEmail] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState("");
 
@@ -47,7 +46,7 @@ export function InviteMemberDrawer({
     reset,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -59,6 +58,24 @@ export function InviteMemberDrawer({
 
   const role = watch("role");
 
+  const inviteMutation = useMutation({
+    mutationFn: (formData: FormValues) =>
+      inviteMember({
+        name: formData.name,
+        email: formData.email,
+        role: formData.role as UserRole,
+      }),
+    onSuccess: (response, variables) => {
+      setInviteLink(response.data.inviteLink ?? "");
+      setSuccessEmail(variables.email);
+      toast.success(response.message || `Invite prepared for ${variables.email}`);
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TEAM_MEMBERS });
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error));
+    },
+  });
+
   useEffect(() => {
     if (!open) return;
     setSuccessEmail(null);
@@ -67,29 +84,15 @@ export function InviteMemberDrawer({
   }, [open, reset]);
 
   function onSubmit(values: FormValues) {
-    const exists = existing.some(
-      (member) => member.email.toLowerCase() === values.email.toLowerCase()
+    const exists = existingEmails.some(
+      (email) => email.toLowerCase() === values.email.toLowerCase()
     );
     if (exists) {
       toast.error("A member with this email already exists.");
       return;
     }
 
-    const link = createInviteLink(values.email);
-    const member: MockTeamMember = {
-      id: `tm-${Date.now()}`,
-      name: values.name,
-      email: values.email,
-      role: values.role as UserRole,
-      isActive: false,
-      createdAt: new Date().toISOString(),
-      inviteAccepted: false,
-    };
-
-    onInvite(member);
-    setInviteLink(link);
-    setSuccessEmail(values.email);
-    toast.success(`Invite prepared for ${values.email}`);
+    inviteMutation.mutate(values);
   }
 
   async function copyLink() {
@@ -126,10 +129,10 @@ export function InviteMemberDrawer({
             <Button
               type="submit"
               form="invite-member-form"
-              disabled={isSubmitting}
+              disabled={inviteMutation.isPending}
               className="w-full bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
             >
-              Send Invite
+              {inviteMutation.isPending ? "Sending..." : "Send Invite"}
             </Button>
             <Button type="button" variant="ghost" className="w-full" onClick={handleClose}>
               Cancel
@@ -152,14 +155,16 @@ export function InviteMemberDrawer({
               will be sent via email.
             </p>
           </div>
-          <div className="flex w-full items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-left">
-            <code className="flex-1 break-all text-xs text-slate-700">
-              {inviteLink}
-            </code>
-            <Button type="button" size="icon" variant="outline" onClick={copyLink}>
-              <Copy className="size-4" />
-            </Button>
-          </div>
+          {inviteLink ? (
+            <div className="flex w-full items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-left">
+              <code className="flex-1 break-all text-xs text-slate-700">
+                {inviteLink}
+              </code>
+              <Button type="button" size="icon" variant="outline" onClick={copyLink}>
+                <Copy className="size-4" />
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : (
         <form
@@ -172,6 +177,7 @@ export function InviteMemberDrawer({
             <Input
               id="invite-name"
               placeholder="Enter their full name"
+              disabled={inviteMutation.isPending}
               {...register("name")}
             />
             {errors.name ? (
@@ -185,6 +191,7 @@ export function InviteMemberDrawer({
               id="invite-email"
               type="email"
               placeholder="name@company.com"
+              disabled={inviteMutation.isPending}
               {...register("email")}
             />
             {errors.email ? (

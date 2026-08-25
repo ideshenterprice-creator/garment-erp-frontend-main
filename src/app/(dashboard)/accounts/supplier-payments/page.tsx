@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { useState } from "react";
 import { toast } from "sonner";
-import {
-  mockSupplierPayments,
-  type MockSupplierPayment,
-} from "@/mock/accounts";
-import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
+import type { SupplierBillPaymentRow } from "@/types";
+import { PageHeader } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
 import {
@@ -17,70 +15,92 @@ import {
 import { SupplierPaymentStatCards } from "@/components/modules/accounts/SupplierPaymentStatCards";
 import { SupplierPaymentsTable } from "@/components/modules/accounts/SupplierPaymentsTable";
 import { RecordSupplierPaymentDrawer } from "@/components/modules/accounts/RecordSupplierPaymentDrawer";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { ACCOUNT_PAYMENT_MODES, toIsoDate } from "@/lib/accounts";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { formatCurrency } from "@/lib/utils";
+import {
+  getSupplierPayments,
+  recordSupplierPayment,
+} from "@/services/accounts.service";
 
 const PAGE_SIZE = 10;
 
 const defaultFilters: SupplierPaymentFilters = {
   supplierId: "ALL",
   status: "ALL",
+  from: "",
+  to: "",
 };
 
+function modeLabel(mode: string): string {
+  return (
+    ACCOUNT_PAYMENT_MODES.find((item) => item.value === mode)?.label ?? mode
+  );
+}
+
 export default function SupplierPaymentsPage() {
-  const [loading, setLoading] = useState(true);
-  const [payments, setPayments] =
-    useState<MockSupplierPayment[]>(mockSupplierPayments);
+  const queryClient = useQueryClient();
   const [filters, setFilters] =
     useState<SupplierPaymentFilters>(defaultFilters);
   const [page, setPage] = useState(1);
-  const [payTarget, setPayTarget] = useState<MockSupplierPayment | null>(null);
+  const [payTarget, setPayTarget] = useState<SupplierBillPaymentRow | null>(
+    null
+  );
+  const [viewTarget, setViewTarget] = useState<SupplierBillPaymentRow | null>(
+    null
+  );
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
+  const queryFilters = {
+    supplierId: filters.supplierId === "ALL" ? undefined : filters.supplierId,
+    status: filters.status === "ALL" ? undefined : filters.status,
+    from: filters.from ? toIsoDate(filters.from) : undefined,
+    to: filters.to ? toIsoDate(filters.to) : undefined,
+    page,
+    limit: PAGE_SIZE,
+  };
 
-  const filtered = useMemo(() => {
-    return payments.filter((row) => {
-      if (filters.supplierId !== "ALL" && row.supplierId !== filters.supplierId) {
-        return false;
-      }
-      if (filters.status !== "ALL" && row.status !== filters.status) return false;
-      return true;
-    });
-  }, [payments, filters]);
+  const paymentsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.SUPPLIER_PAYMENTS, queryFilters],
+    queryFn: () => getSupplierPayments(queryFilters),
+  });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const recordMutation = useMutation({
+    mutationFn: recordSupplierPayment,
+    onSuccess: () => {
+      toast.success("Payment recorded.");
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.SUPPLIER_PAYMENTS,
+      });
+      setPayTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to record payment."));
+    },
+  });
 
-  const kpis = useMemo(() => {
-    const totalPending = payments.reduce((sum, row) => sum + row.balanceDue, 0);
-    const totalPaidThisMonth = payments
-      .filter((row) => row.amountPaid > 0)
-      .reduce((sum, row) => sum + row.amountPaid, 0);
-    return { totalPending, totalPaidThisMonth };
-  }, [payments]);
+  const payments = paymentsQuery.data?.data.data ?? [];
+  const total = paymentsQuery.data?.data.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const summary = paymentsQuery.data?.data.summary;
 
   return (
     <div>
       <PageHeader
         title="Supplier Payments"
         subtitle="Pay suppliers against confirmed purchase bills."
-        actionButton={
-          <PageHeaderAction
-            label="New Payment"
-            icon={<Plus className="size-4" />}
-            onClick={() => {
-              const unpaid = payments.find((p) => p.status !== "PAID");
-              if (unpaid) setPayTarget(unpaid);
-              else toast.message("No unpaid bills available");
-            }}
-          />
-        }
       />
 
       <SupplierPaymentStatCards
-        totalPending={kpis.totalPending}
-        totalPaidThisMonth={kpis.totalPaidThisMonth}
+        totalPending={summary?.totalPending ?? 0}
+        totalPaidThisMonth={summary?.totalPaidThisMonth ?? 0}
       />
 
       <SupplierPaymentFilterBar
@@ -91,25 +111,33 @@ export default function SupplierPaymentsPage() {
         }}
       />
 
-      {loading ? (
+      {paymentsQuery.isLoading ? (
         <TableSkeleton rows={6} />
+      ) : paymentsQuery.isError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+          <p className="text-sm text-red-700">
+            Failed to load supplier payments.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3"
+            onClick={() => void paymentsQuery.refetch()}
+          >
+            Retry
+          </Button>
+        </div>
       ) : (
         <>
           <SupplierPaymentsTable
-            payments={pageItems}
+            payments={payments}
             onPay={setPayTarget}
-            onRowClick={(row) => {
-              if (row.status !== "PAID") {
-                setPayTarget(row);
-                return;
-              }
-              toast.message(`${row.billNo} is fully paid`);
-            }}
+            onView={setViewTarget}
           />
           <Pagination
             page={page}
             totalPages={totalPages}
-            totalItems={filtered.length}
+            totalItems={total}
             pageSize={PAGE_SIZE}
             onPageChange={setPage}
             label="entries"
@@ -120,42 +148,94 @@ export default function SupplierPaymentsPage() {
       <RecordSupplierPaymentDrawer
         open={Boolean(payTarget)}
         payment={payTarget}
+        isSubmitting={recordMutation.isPending}
         onClose={() => setPayTarget(null)}
         onConfirm={(values) => {
           if (!payTarget) return;
-          setPayments((prev) =>
-            prev.map((row) => {
-              if (row.id !== payTarget.id) return row;
-              const amountPaid = row.amountPaid + values.amountPaid;
-              const balanceDue = Math.max(0, row.billAmount - amountPaid);
-              const status =
-                balanceDue === 0
-                  ? "PAID"
-                  : amountPaid > 0
-                    ? "PARTIAL"
-                    : "UNPAID";
-              return {
-                ...row,
-                amountPaid,
-                balanceDue,
-                status,
-                payments: [
-                  ...row.payments,
-                  {
-                    id: `spp-${Date.now()}`,
-                    date: values.paymentDate,
-                    mode: values.paymentMode,
-                    referenceNo: values.referenceNo ?? "",
-                    amount: values.amountPaid,
-                    notes: values.notes,
-                  },
-                ],
-              };
-            })
-          );
-          toast.success("Payment recorded successfully.");
+          recordMutation.mutate({
+            purchaseBillId: payTarget.id,
+            amountPaid: values.amountPaid,
+            paymentDate: toIsoDate(values.paymentDate),
+            paymentMode: values.paymentMode,
+            referenceNo: values.referenceNo || undefined,
+            notes: values.notes || undefined,
+          });
         }}
       />
+
+      <Dialog
+        open={Boolean(viewTarget)}
+        onOpenChange={(open) => {
+          if (!open) setViewTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{viewTarget?.billNumber}</DialogTitle>
+          </DialogHeader>
+          {viewTarget ? (
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Supplier</span>
+                <span className="font-medium">
+                  {viewTarget.supplier?.name ?? "—"}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Bill Amount</span>
+                <span className="font-medium">
+                  {formatCurrency(Number(viewTarget.totalAmount))}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Paid</span>
+                <span className="font-medium">
+                  {formatCurrency(Number(viewTarget.totalPaid))}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Balance</span>
+                <span className="font-medium">
+                  {formatCurrency(Number(viewTarget.outstanding))}
+                </span>
+              </div>
+              <div className="border-t pt-3">
+                <p className="mb-2 font-semibold">Payment History</p>
+                {(viewTarget.payments ?? []).length === 0 ? (
+                  <p className="text-muted-foreground">No payments yet.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {(viewTarget.payments ?? []).map((payment) => (
+                      <li
+                        key={payment.id}
+                        className="rounded-lg border border-slate-200 px-3 py-2"
+                      >
+                        <div className="flex justify-between gap-2">
+                          <span>
+                            {format(
+                              new Date(payment.paymentDate),
+                              "dd MMM yyyy"
+                            )}
+                          </span>
+                          <span className="font-semibold">
+                            {formatCurrency(Number(payment.amountPaid))}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {modeLabel(payment.paymentMode)}
+                          {payment.referenceNo
+                            ? ` · ${payment.referenceNo}`
+                            : ""}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

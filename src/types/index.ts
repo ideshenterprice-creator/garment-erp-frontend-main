@@ -1009,10 +1009,11 @@ export interface KarigarPayment {
   id: string;
   paymentNumber: string;
   karigarId: string;
-  karigar: Party;
+  karigar: Pick<Party, "id" | "name" | "partyNumber">;
   poId: string;
+  po?: Pick<PurchaseOrder, "id" | "poNumber"> | null;
   operationId: string;
-  operation: Operation;
+  operation: Pick<Operation, "id" | "name">;
   productionEntryType: string;
   piecesCompleted: number;
   ratePerPiece: number;
@@ -1021,8 +1022,93 @@ export interface KarigarPayment {
   year: number;
   status: PaymentStatus;
   paidAt: string | null;
+  paymentMode: string | null;
+  referenceNo: string | null;
+  notes?: string | null;
+}
+
+export interface KarigarPaymentsSummary {
+  totalDueThisWeek: number;
+  totalPaidThisMonth: number;
+  pendingCount: number;
+}
+
+export interface KarigarPaymentsListResponse
+  extends PaginatedResponseLike<KarigarPayment> {
+  summary?: KarigarPaymentsSummary;
+}
+
+export interface ConfirmKarigarPaymentPayload {
+  paymentDate: string;
   paymentMode: string;
-  referenceNo: string;
+  referenceNo?: string;
+}
+
+export type SupplierBillPayStatus = "PAID" | "PARTIAL" | "UNPAID";
+
+export interface SupplierBillPaymentRow {
+  id: string;
+  billNumber: string;
+  supplierId: string;
+  supplier?: Pick<Party, "id" | "name">;
+  purchaseDate: string;
+  totalAmount: number;
+  totalPaid: number;
+  outstanding: number;
+  paymentStatus: SupplierBillPayStatus;
+  payments?: Array<{
+    id: string;
+    amountPaid: number;
+    paymentDate: string;
+    paymentMode: string;
+    referenceNo?: string | null;
+    notes?: string | null;
+  }>;
+}
+
+export interface SupplierPaymentsSummary {
+  totalPending: number;
+  totalPaidThisMonth: number;
+}
+
+export interface SupplierPaymentsListResponse
+  extends PaginatedResponseLike<SupplierBillPaymentRow> {
+  summary?: SupplierPaymentsSummary;
+}
+
+export interface RecordSupplierPaymentPayload {
+  purchaseBillId: string;
+  amountPaid: number;
+  paymentDate: string;
+  paymentMode: string;
+  referenceNo?: string;
+  notes?: string;
+}
+
+export type VoucherType = "PAYMENT" | "RECEIPT";
+
+export interface Voucher {
+  id: string;
+  voucherNumber: string;
+  type: VoucherType;
+  partyDescription: string;
+  amount: number;
+  paymentMode: string;
+  referenceNo: string | null;
+  date: string;
+  notes: string | null;
+  createdById?: string;
+  createdBy?: { id: string; name: string; email?: string };
+}
+
+export interface CreateVoucherPayload {
+  type: VoucherType;
+  partyDescription: string;
+  amount: number;
+  paymentMode: string;
+  referenceNo?: string;
+  date: string;
+  notes?: string;
 }
 
 export type BoxStatus = "PACKED" | "LOADED" | "PENDING";

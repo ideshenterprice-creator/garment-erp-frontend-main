@@ -1,10 +1,7 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import type { PaymentStatus } from "@/types";
-import {
-  accountsKarigars,
-  accountsPOs,
-} from "@/mock/accounts";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -14,6 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { lastNWeekOptions } from "@/lib/accounts";
+import { getParties } from "@/services/masters.service";
+import { getPurchaseOrders } from "@/services/purchaseOrders.service";
 
 export interface KarigarPaymentFilters {
   karigarId: string;
@@ -28,11 +29,26 @@ interface KarigarPaymentFilterBarProps {
   onApply: () => void;
 }
 
+const weekOptions = lastNWeekOptions(8);
+
 export function KarigarPaymentFilterBar({
   filters,
   onChange,
   onApply,
 }: KarigarPaymentFilterBarProps) {
+  const karigarsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PARTIES, { type: "KARIGAR", limit: 100 }],
+    queryFn: () => getParties({ type: "KARIGAR", limit: 100 }),
+  });
+
+  const posQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, { limit: 100 }],
+    queryFn: () => getPurchaseOrders({ limit: 100 }),
+  });
+
+  const karigars = karigarsQuery.data?.data.data ?? [];
+  const pos = posQuery.data?.data.data ?? [];
+
   return (
     <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5 xl:items-end">
@@ -51,7 +67,7 @@ export function KarigarPaymentFilterBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All Karigars</SelectItem>
-              {accountsKarigars.map((k) => (
+              {karigars.map((k) => (
                 <SelectItem key={k.id} value={k.id}>
                   {k.name}
                 </SelectItem>
@@ -73,7 +89,7 @@ export function KarigarPaymentFilterBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All POs</SelectItem>
-              {accountsPOs.map((po) => (
+              {pos.map((po) => (
                 <SelectItem key={po.id} value={po.id}>
                   {po.poNumber}
                 </SelectItem>
@@ -118,10 +134,12 @@ export function KarigarPaymentFilterBar({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="42">Week 42 (Current)</SelectItem>
-              <SelectItem value="41">Week 41</SelectItem>
-              <SelectItem value="40">Week 40</SelectItem>
               <SelectItem value="ALL">All Weeks</SelectItem>
+              {weekOptions.map((week) => (
+                <SelectItem key={week.value} value={week.value}>
+                  {week.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import type { VoucherType } from "@/mock/accounts";
+import type { VoucherType } from "@/types";
 import { cn } from "@/lib/utils";
 
 export type VoucherFilter = "ALL" | VoucherType;

@@ -1,20 +1,31 @@
 import api from "@/lib/axios";
 import type { ApiResponse, PaginatedResponse } from "@/types/api";
-import type { AccountStatement, KarigarPayment } from "@/types";
+import type {
+  AccountStatement,
+  ConfirmKarigarPaymentPayload,
+  CreateVoucherPayload,
+  KarigarPayment,
+  KarigarPaymentsListResponse,
+  RecordSupplierPaymentPayload,
+  SupplierBillPaymentRow,
+  SupplierPaymentsListResponse,
+  Voucher,
+} from "@/types";
 import type { ListParams } from "@/services/masters.service";
 
 export async function getKarigarPayments(
   params?: ListParams
-): Promise<ApiResponse<PaginatedResponse<KarigarPayment>>> {
-  const response = await api.get<
-    ApiResponse<PaginatedResponse<KarigarPayment>>
-  >("/accounts/karigar-payments", { params });
+): Promise<ApiResponse<KarigarPaymentsListResponse>> {
+  const response = await api.get<ApiResponse<KarigarPaymentsListResponse>>(
+    "/accounts/karigar-payments",
+    { params }
+  );
   return response.data;
 }
 
 export async function confirmKarigarPayment(
   id: string,
-  data: Record<string, unknown>
+  data: ConfirmKarigarPaymentPayload
 ): Promise<ApiResponse<KarigarPayment>> {
   const response = await api.patch<ApiResponse<KarigarPayment>>(
     `/accounts/karigar-payments/${id}/confirm`,
@@ -25,8 +36,8 @@ export async function confirmKarigarPayment(
 
 export async function getSupplierPayments(
   params?: ListParams
-): Promise<ApiResponse<PaginatedResponse<unknown>>> {
-  const response = await api.get<ApiResponse<PaginatedResponse<unknown>>>(
+): Promise<ApiResponse<SupplierPaymentsListResponse>> {
+  const response = await api.get<ApiResponse<SupplierPaymentsListResponse>>(
     "/accounts/supplier-payments",
     { params }
   );
@@ -34,9 +45,9 @@ export async function getSupplierPayments(
 }
 
 export async function recordSupplierPayment(
-  data: Record<string, unknown>
-): Promise<ApiResponse<unknown>> {
-  const response = await api.post<ApiResponse<unknown>>(
+  data: RecordSupplierPaymentPayload
+): Promise<ApiResponse<SupplierBillPaymentRow>> {
+  const response = await api.post<ApiResponse<SupplierBillPaymentRow>>(
     "/accounts/supplier-payments",
     data
   );
@@ -45,8 +56,8 @@ export async function recordSupplierPayment(
 
 export async function getVouchers(
   params?: ListParams
-): Promise<ApiResponse<PaginatedResponse<unknown>>> {
-  const response = await api.get<ApiResponse<PaginatedResponse<unknown>>>(
+): Promise<ApiResponse<PaginatedResponse<Voucher>>> {
+  const response = await api.get<ApiResponse<PaginatedResponse<Voucher>>>(
     "/accounts/vouchers",
     { params }
   );
@@ -54,9 +65,9 @@ export async function getVouchers(
 }
 
 export async function createVoucher(
-  data: Record<string, unknown>
-): Promise<ApiResponse<unknown>> {
-  const response = await api.post<ApiResponse<unknown>>(
+  data: CreateVoucherPayload
+): Promise<ApiResponse<Voucher>> {
+  const response = await api.post<ApiResponse<Voucher>>(
     "/accounts/vouchers",
     data
   );

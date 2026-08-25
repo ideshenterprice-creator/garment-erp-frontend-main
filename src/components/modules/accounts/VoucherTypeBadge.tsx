@@ -1,4 +1,4 @@
-import type { VoucherType } from "@/mock/accounts";
+import type { VoucherType } from "@/types";
 import { cn } from "@/lib/utils";
 
 const typeClass: Record<VoucherType, string> = {

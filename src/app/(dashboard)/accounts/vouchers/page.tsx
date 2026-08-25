@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Info, Plus } from "lucide-react";
-import { toast } from "sonner";
 import { format } from "date-fns";
-import { mockVouchers, type MockVoucher } from "@/mock/accounts";
+import { useState } from "react";
+import { toast } from "sonner";
+import type { CreateVoucherPayload, Voucher } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
@@ -14,36 +15,65 @@ import {
 } from "@/components/modules/accounts/VoucherFilterBar";
 import { VouchersTable } from "@/components/modules/accounts/VouchersTable";
 import { NewVoucherDrawer } from "@/components/modules/accounts/NewVoucherDrawer";
-import { formatCurrency } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { ACCOUNT_PAYMENT_MODES, toIsoDate } from "@/lib/accounts";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { formatCurrency } from "@/lib/utils";
+import { createVoucher, getVouchers } from "@/services/accounts.service";
 
 const PAGE_SIZE = 10;
 
+function modeLabel(mode: string): string {
+  return (
+    ACCOUNT_PAYMENT_MODES.find((item) => item.value === mode)?.label ?? mode
+  );
+}
+
 export default function VouchersPage() {
-  const [loading, setLoading] = useState(true);
-  const [vouchers, setVouchers] = useState<MockVoucher[]>(mockVouchers);
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<VoucherFilter>("ALL");
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selected, setSelected] = useState<MockVoucher | null>(null);
+  const [selected, setSelected] = useState<Voucher | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
+  const queryFilters = {
+    type: filter === "ALL" ? undefined : filter,
+    page,
+    limit: PAGE_SIZE,
+  };
 
-  const filtered = useMemo(() => {
-    if (filter === "ALL") return vouchers;
-    return vouchers.filter((v) => v.type === filter);
-  }, [vouchers, filter]);
+  const vouchersQuery = useQuery({
+    queryKey: [...QUERY_KEYS.VOUCHERS, queryFilters],
+    queryFn: () => getVouchers(queryFilters),
+  });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const createMutation = useMutation({
+    mutationFn: (payload: CreateVoucherPayload) =>
+      createVoucher({
+        ...payload,
+        date: toIsoDate(payload.date),
+      }),
+    onSuccess: () => {
+      toast.success("Voucher saved.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.VOUCHERS });
+      setDrawerOpen(false);
+      setPage(1);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to save voucher."));
+    },
+  });
+
+  const vouchers = vouchersQuery.data?.data.data ?? [];
+  const total = vouchersQuery.data?.data.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div>
@@ -76,19 +106,31 @@ export default function VouchersPage() {
         }}
       />
 
-      {loading ? (
+      {vouchersQuery.isLoading ? (
         <TableSkeleton rows={6} />
+      ) : vouchersQuery.isError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+          <p className="text-sm text-red-700">Failed to load vouchers.</p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3"
+            onClick={() => void vouchersQuery.refetch()}
+          >
+            Retry
+          </Button>
+        </div>
       ) : (
         <>
           <VouchersTable
-            vouchers={pageItems}
+            vouchers={vouchers}
             onAdd={() => setDrawerOpen(true)}
-            onRowClick={setSelected}
+            onView={setSelected}
           />
           <Pagination
             page={page}
             totalPages={totalPages}
-            totalItems={filtered.length}
+            totalItems={total}
             pageSize={PAGE_SIZE}
             onPageChange={setPage}
             label="vouchers"
@@ -98,13 +140,9 @@ export default function VouchersPage() {
 
       <NewVoucherDrawer
         open={drawerOpen}
-        existing={vouchers}
+        isSubmitting={createMutation.isPending}
         onClose={() => setDrawerOpen(false)}
-        onSave={(voucher) => {
-          setVouchers((prev) => [voucher, ...prev]);
-          setPage(1);
-          toast.success("Voucher saved successfully.");
-        }}
+        onSave={(payload) => createMutation.mutate(payload)}
       />
 
       <Dialog
@@ -140,12 +178,14 @@ export default function VouchersPage() {
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">Amount</span>
                 <span className="font-semibold">
-                  {formatCurrency(selected.amount)}
+                  {formatCurrency(Number(selected.amount))}
                 </span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">Mode</span>
-                <span className="font-medium">{selected.paymentMode}</span>
+                <span className="font-medium">
+                  {modeLabel(selected.paymentMode)}
+                </span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-muted-foreground">Reference</span>

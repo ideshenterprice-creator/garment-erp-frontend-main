@@ -5,12 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
-import { toast } from "sonner";
-import {
-  generateNextVoucherNumber,
-  type MockVoucher,
-  type VoucherType,
-} from "@/mock/accounts";
+import type { CreateVoucherPayload, VoucherType } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ACCOUNT_PAYMENT_MODES, todayInputValue } from "@/lib/accounts";
 import { cn } from "@/lib/utils";
 
 const schema = z.object({
@@ -39,14 +35,14 @@ type FormValues = z.infer<typeof schema>;
 
 interface NewVoucherDrawerProps {
   open: boolean;
-  existing: MockVoucher[];
+  isSubmitting?: boolean;
   onClose: () => void;
-  onSave: (voucher: MockVoucher) => void;
+  onSave: (payload: CreateVoucherPayload) => void;
 }
 
 export function NewVoucherDrawer({
   open,
-  existing,
+  isSubmitting = false,
   onClose,
   onSave,
 }: NewVoucherDrawerProps) {
@@ -56,16 +52,16 @@ export function NewVoucherDrawer({
     reset,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       type: "PAYMENT",
       partyDescription: "",
       amount: 0,
-      paymentMode: "Bank Transfer",
+      paymentMode: "BANK_TRANSFER",
       referenceNo: "",
-      date: "",
+      date: todayInputValue(),
       notes: "",
     },
   });
@@ -78,29 +74,23 @@ export function NewVoucherDrawer({
       type: "PAYMENT",
       partyDescription: "",
       amount: 0,
-      paymentMode: "Bank Transfer",
+      paymentMode: "BANK_TRANSFER",
       referenceNo: "",
-      date: new Date().toISOString().slice(0, 10),
+      date: todayInputValue(),
       notes: "",
     });
   }, [open, reset]);
 
   function onSubmit(values: FormValues) {
-    const voucherNumber = generateNextVoucherNumber(existing);
-    const voucher: MockVoucher = {
-      id: `vch-${Date.now()}`,
-      voucherNumber,
-      date: values.date,
+    onSave({
       type: values.type as VoucherType,
       partyDescription: values.partyDescription,
       amount: values.amount,
       paymentMode: values.paymentMode,
-      referenceNo: values.referenceNo || "—",
-      notes: values.notes,
-    };
-    onSave(voucher);
-    toast.success(`Voucher ${voucherNumber} saved.`);
-    onClose();
+      referenceNo: values.referenceNo || undefined,
+      date: values.date,
+      notes: values.notes || undefined,
+    });
   }
 
   return (
@@ -187,6 +177,7 @@ export function NewVoucherDrawer({
           <Input
             id="v-amount"
             type="number"
+            step="0.01"
             {...register("amount", { valueAsNumber: true })}
           />
           {errors.amount ? (
@@ -206,11 +197,11 @@ export function NewVoucherDrawer({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Cash">Cash</SelectItem>
-              <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-              <SelectItem value="UPI">UPI</SelectItem>
-              <SelectItem value="Cheque">Cheque</SelectItem>
-              <SelectItem value="Wire Transfer">Wire Transfer</SelectItem>
+              {ACCOUNT_PAYMENT_MODES.map((mode) => (
+                <SelectItem key={mode.value} value={mode.value}>
+                  {mode.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

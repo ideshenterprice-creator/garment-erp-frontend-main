@@ -81,7 +81,7 @@ export const sidebarConfig: SidebarItem[] = [
     icon: "Wallet",
     subItems: [
       {
-        label: "Karigar Payments",
+        label: "Karigar Payment",
         href: ROUTES.ACCOUNTS.KARIGAR_PAYMENTS,
       },
       {

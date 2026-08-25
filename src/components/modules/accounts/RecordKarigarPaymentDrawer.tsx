@@ -5,15 +5,21 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { CheckCircle2, Lock } from "lucide-react";
-import { toast } from "sonner";
-import type { MockKarigarPayment } from "@/mock/accounts";
-import { poNumberForId } from "@/mock/accounts";
+import type { KarigarPayment } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { cn, formatCurrency } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ACCOUNT_PAYMENT_MODES, todayInputValue } from "@/lib/accounts";
+import { formatCurrency } from "@/lib/utils";
 
 const schema = z.object({
   paymentDate: z.string().min(1, "Payment date is required"),
@@ -22,20 +28,20 @@ const schema = z.object({
   notes: z.string().optional(),
 });
 
-type FormValues = z.infer<typeof schema>;
-
-const modes = ["Cash", "Bank Transfer", "UPI", "Cheque"] as const;
+export type RecordKarigarPaymentFormValues = z.infer<typeof schema>;
 
 interface RecordKarigarPaymentDrawerProps {
   open: boolean;
-  payment: MockKarigarPayment | null;
+  payment: KarigarPayment | null;
+  isSubmitting?: boolean;
   onClose: () => void;
-  onConfirm: (values: FormValues) => void;
+  onConfirm: (values: RecordKarigarPaymentFormValues) => void;
 }
 
 export function RecordKarigarPaymentDrawer({
   open,
   payment,
+  isSubmitting = false,
   onClose,
   onConfirm,
 }: RecordKarigarPaymentDrawerProps) {
@@ -45,37 +51,26 @@ export function RecordKarigarPaymentDrawer({
     reset,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
-  } = useForm<FormValues>({
+    formState: { errors },
+  } = useForm<RecordKarigarPaymentFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      paymentDate: "",
-      paymentMode: "Cash",
+      paymentDate: todayInputValue(),
+      paymentMode: "CASH",
       referenceNo: "",
       notes: "",
     },
   });
 
-  const paymentMode = watch("paymentMode");
-
   useEffect(() => {
     if (!open || !payment) return;
     reset({
-      paymentDate: new Date().toISOString().slice(0, 10),
-      paymentMode: "Cash",
+      paymentDate: todayInputValue(),
+      paymentMode: "CASH",
       referenceNo: "",
       notes: "",
     });
   }, [open, payment, reset]);
-
-  function onSubmit(values: FormValues) {
-    if (!payment) return;
-    onConfirm(values);
-    toast.success(
-      `Payment of ${formatCurrency(payment.amountDue)} confirmed for ${payment.karigar.name}.`
-    );
-    onClose();
-  }
 
   return (
     <DrawerForm
@@ -103,7 +98,7 @@ export function RecordKarigarPaymentDrawer({
       {payment ? (
         <form
           id="record-karigar-payment-form"
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={handleSubmit(onConfirm)}
           className="flex flex-col gap-4"
         >
           <div className="rounded-xl border border-teal-100 bg-teal-50/60 p-4">
@@ -119,7 +114,7 @@ export function RecordKarigarPaymentDrawer({
                   Operation
                 </p>
                 <p className="mt-1 text-sm font-semibold">
-                  {payment.operation.name}
+                  {payment.operation?.name ?? "—"}
                 </p>
               </div>
               <div>
@@ -127,7 +122,7 @@ export function RecordKarigarPaymentDrawer({
                   PO Number
                 </p>
                 <p className="mt-1 text-sm font-semibold">
-                  {poNumberForId(payment.poId)}
+                  {payment.po?.poNumber ?? "—"}
                 </p>
               </div>
               <div>
@@ -146,7 +141,7 @@ export function RecordKarigarPaymentDrawer({
                   <Lock className="size-3.5 text-slate-400" />
                 </span>
                 <span className="font-medium">
-                  {formatCurrency(payment.ratePerPiece)}
+                  {formatCurrency(Number(payment.ratePerPiece))}/pc
                 </span>
               </div>
               <div className="mt-2 flex items-center justify-between">
@@ -154,7 +149,7 @@ export function RecordKarigarPaymentDrawer({
                   Amount Due
                 </span>
                 <span className="text-xl font-bold text-slate-900">
-                  {formatCurrency(payment.amountDue)}
+                  {formatCurrency(Number(payment.amountDue))}
                 </span>
               </div>
               <p className="mt-2 text-xs text-red-600">
@@ -175,25 +170,23 @@ export function RecordKarigarPaymentDrawer({
 
           <div className="flex flex-col gap-2">
             <Label>Payment Mode</Label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {modes.map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() =>
-                    setValue("paymentMode", mode, { shouldValidate: true })
-                  }
-                  className={cn(
-                    "rounded-lg border px-3 py-2 text-sm font-medium",
-                    paymentMode === mode
-                      ? "border-[#1b3a3a] bg-[#1b3a3a] text-white"
-                      : "border-slate-200 bg-white text-slate-600"
-                  )}
-                >
-                  {mode === "Bank Transfer" ? "Bank" : mode}
-                </button>
-              ))}
-            </div>
+            <Select
+              value={watch("paymentMode")}
+              onValueChange={(value) =>
+                setValue("paymentMode", value, { shouldValidate: true })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ACCOUNT_PAYMENT_MODES.map((mode) => (
+                  <SelectItem key={mode.value} value={mode.value}>
+                    {mode.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {errors.paymentMode ? (
               <p className="text-sm text-destructive">
                 {errors.paymentMode.message}

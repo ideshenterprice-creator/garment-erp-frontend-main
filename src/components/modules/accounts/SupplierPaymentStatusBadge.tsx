@@ -1,14 +1,14 @@
-import type { SupplierPaymentStatus } from "@/mock/accounts";
+import type { SupplierBillPayStatus } from "@/types";
 import { cn } from "@/lib/utils";
 
-const statusClass: Record<SupplierPaymentStatus, string> = {
+const statusClass: Record<SupplierBillPayStatus, string> = {
   PAID: "bg-emerald-50 text-emerald-700",
   PARTIAL: "bg-amber-50 text-amber-800",
   UNPAID: "bg-red-50 text-red-700",
 };
 
 interface SupplierPaymentStatusBadgeProps {
-  status: SupplierPaymentStatus;
+  status: SupplierBillPayStatus;
 }
 
 export function SupplierPaymentStatusBadge({

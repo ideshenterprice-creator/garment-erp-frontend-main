@@ -1,7 +1,6 @@
 "use client";
 
-import type { MockKarigarPayment } from "@/mock/accounts";
-import { poNumberForId } from "@/mock/accounts";
+import type { KarigarPayment } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
 import { KarigarPaymentStatusBadge } from "@/components/modules/accounts/KarigarPaymentStatusBadge";
 import { Button } from "@/components/ui/button";
@@ -16,9 +15,9 @@ import {
 import { formatCurrency } from "@/lib/utils";
 
 interface KarigarPaymentsTableProps {
-  payments: MockKarigarPayment[];
-  onRecordPayment: (payment: MockKarigarPayment) => void;
-  onViewReceipt: (payment: MockKarigarPayment) => void;
+  payments: KarigarPayment[];
+  onRecordPayment: (payment: KarigarPayment) => void;
+  onViewReceipt: (payment: KarigarPayment) => void;
 }
 
 export function KarigarPaymentsTable({
@@ -79,18 +78,18 @@ export function KarigarPaymentsTable({
                 <TableCell>{payment.karigar.name}</TableCell>
                 <TableCell>
                   <p className="font-semibold text-slate-900">
-                    {poNumberForId(payment.poId)}
+                    {payment.po?.poNumber ?? "—"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {payment.operation.name}
+                    {payment.operation?.name ?? "—"}
                   </p>
                 </TableCell>
                 <TableCell>{payment.piecesCompleted}</TableCell>
                 <TableCell>
-                  {formatCurrency(payment.ratePerPiece)}
+                  {formatCurrency(Number(payment.ratePerPiece))}
                 </TableCell>
                 <TableCell className="font-semibold">
-                  {formatCurrency(payment.amountDue)}
+                  {formatCurrency(Number(payment.amountDue))}
                 </TableCell>
                 <TableCell>W{payment.weekNumber}</TableCell>
                 <TableCell>
@@ -110,7 +109,7 @@ export function KarigarPaymentsTable({
                     <Button
                       type="button"
                       size="sm"
-                      variant="outline"
+                      variant="ghost"
                       onClick={() => onViewReceipt(payment)}
                     >
                       View Receipt

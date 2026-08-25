@@ -1,4 +1,5 @@
 import { formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface AccountStatementSummaryProps {
   totalBilled: number;
@@ -31,7 +32,12 @@ export function AccountStatementSummary({
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           Outstanding
         </p>
-        <p className="mt-2 text-xl font-bold text-red-600">
+        <p
+          className={cn(
+            "mt-2 text-xl font-bold",
+            outstanding > 0 ? "text-red-600" : "text-slate-900"
+          )}
+        >
           {formatCurrency(outstanding)}
         </p>
       </div>

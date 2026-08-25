@@ -1,16 +1,23 @@
 "use client";
 
 import { format } from "date-fns";
-import type { MockKarigarPayment } from "@/mock/accounts";
-import { poNumberForId } from "@/mock/accounts";
+import type { KarigarPayment } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { Button } from "@/components/ui/button";
+import { ACCOUNT_PAYMENT_MODES } from "@/lib/accounts";
 import { formatCurrency } from "@/lib/utils";
 
 interface ViewReceiptDrawerProps {
   open: boolean;
-  payment: MockKarigarPayment | null;
+  payment: KarigarPayment | null;
   onClose: () => void;
+}
+
+function modeLabel(mode: string | null): string {
+  if (!mode) return "—";
+  return (
+    ACCOUNT_PAYMENT_MODES.find((item) => item.value === mode)?.label ?? mode
+  );
 }
 
 export function ViewReceiptDrawer({
@@ -47,7 +54,7 @@ export function ViewReceiptDrawer({
                   Operation
                 </dt>
                 <dd className="mt-1 text-sm font-semibold">
-                  {payment.operation.name}
+                  {payment.operation?.name ?? "—"}
                 </dd>
               </div>
               <div>
@@ -55,7 +62,7 @@ export function ViewReceiptDrawer({
                   PO
                 </dt>
                 <dd className="mt-1 text-sm font-semibold">
-                  {poNumberForId(payment.poId)}
+                  {payment.po?.poNumber ?? "—"}
                 </dd>
               </div>
               <div>
@@ -71,7 +78,7 @@ export function ViewReceiptDrawer({
                   Rate / Piece
                 </dt>
                 <dd className="mt-1 text-sm font-semibold">
-                  {formatCurrency(payment.ratePerPiece)}
+                  {formatCurrency(Number(payment.ratePerPiece))}
                 </dd>
               </div>
               <div>
@@ -79,7 +86,7 @@ export function ViewReceiptDrawer({
                   Amount Paid
                 </dt>
                 <dd className="mt-1 text-lg font-bold text-slate-900">
-                  {formatCurrency(payment.amountDue)}
+                  {formatCurrency(Number(payment.amountDue))}
                 </dd>
               </div>
               <div>
@@ -97,7 +104,7 @@ export function ViewReceiptDrawer({
                   Mode
                 </dt>
                 <dd className="mt-1 text-sm font-semibold">
-                  {payment.paymentMode || "—"}
+                  {modeLabel(payment.paymentMode)}
                 </dd>
               </div>
               <div className="sm:col-span-2">

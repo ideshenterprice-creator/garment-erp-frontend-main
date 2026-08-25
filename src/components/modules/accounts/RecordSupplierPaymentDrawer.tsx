@@ -5,8 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
-import { toast } from "sonner";
-import type { MockSupplierPayment } from "@/mock/accounts";
+import type { SupplierBillPaymentRow } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,34 +18,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ACCOUNT_PAYMENT_MODES, todayInputValue } from "@/lib/accounts";
 import { formatCurrency } from "@/lib/utils";
+
+export type RecordSupplierPaymentFormValues = {
+  amountPaid: number;
+  paymentDate: string;
+  paymentMode: string;
+  referenceNo?: string;
+  notes?: string;
+};
 
 interface RecordSupplierPaymentDrawerProps {
   open: boolean;
-  payment: MockSupplierPayment | null;
+  payment: SupplierBillPaymentRow | null;
+  isSubmitting?: boolean;
   onClose: () => void;
-  onConfirm: (values: {
-    amountPaid: number;
-    paymentDate: string;
-    paymentMode: string;
-    referenceNo?: string;
-    notes?: string;
-  }) => void;
+  onConfirm: (values: RecordSupplierPaymentFormValues) => void;
 }
 
 export function RecordSupplierPaymentDrawer({
   open,
   payment,
+  isSubmitting = false,
   onClose,
   onConfirm,
 }: RecordSupplierPaymentDrawerProps) {
-  const balanceDue = payment?.balanceDue ?? 0;
+  const balanceDue = payment ? Number(payment.outstanding) : 0;
 
   const schema = z.object({
     amountPaid: z
       .number()
       .positive("Amount must be positive")
-      .refine((value) => value <= balanceDue, {
+      .refine((value) => value <= balanceDue + 1e-9, {
         message: `Amount exceeds balance due of ${formatCurrency(balanceDue)}`,
       }),
     paymentDate: z.string().min(1, "Payment date is required"),
@@ -55,21 +59,19 @@ export function RecordSupplierPaymentDrawer({
     notes: z.string().optional(),
   });
 
-  type FormValues = z.infer<typeof schema>;
-
   const {
     register,
     handleSubmit,
     reset,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
-  } = useForm<FormValues>({
+    formState: { errors },
+  } = useForm<RecordSupplierPaymentFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       amountPaid: 0,
-      paymentDate: "",
-      paymentMode: "Bank Transfer",
+      paymentDate: todayInputValue(),
+      paymentMode: "BANK_TRANSFER",
       referenceNo: "",
       notes: "",
     },
@@ -78,26 +80,20 @@ export function RecordSupplierPaymentDrawer({
   useEffect(() => {
     if (!open || !payment) return;
     reset({
-      amountPaid: payment.balanceDue,
-      paymentDate: new Date().toISOString().slice(0, 10),
-      paymentMode: "Bank Transfer",
+      amountPaid: Number(payment.outstanding),
+      paymentDate: todayInputValue(),
+      paymentMode: "BANK_TRANSFER",
       referenceNo: "",
       notes: "",
     });
   }, [open, payment, reset]);
-
-  function onSubmit(values: FormValues) {
-    onConfirm(values);
-    toast.success("Payment recorded.");
-    onClose();
-  }
 
   return (
     <DrawerForm
       open={open}
       onClose={onClose}
       title="Record Payment"
-      description="Add or edit system information"
+      description={payment?.billNumber}
       footer={
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button
@@ -117,7 +113,7 @@ export function RecordSupplierPaymentDrawer({
       {payment ? (
         <form
           id="record-supplier-payment-form"
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={handleSubmit(onConfirm)}
           className="flex flex-col gap-4"
         >
           <div className="rounded-xl bg-slate-100 p-4">
@@ -127,39 +123,39 @@ export function RecordSupplierPaymentDrawer({
                   Supplier
                 </p>
                 <p className="mt-1 text-sm font-semibold">
-                  {payment.supplierName}
+                  {payment.supplier?.name ?? "—"}
                 </p>
               </div>
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                   Bill Number
                 </p>
-                <p className="mt-1 text-sm font-semibold">{payment.billNo}</p>
+                <p className="mt-1 text-sm font-semibold">{payment.billNumber}</p>
               </div>
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                   Bill Date
                 </p>
                 <p className="mt-1 text-sm font-semibold">
-                  {format(new Date(payment.billDate), "dd MMM yyyy")}
+                  {format(new Date(payment.purchaseDate), "dd MMM yyyy")}
                 </p>
               </div>
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  Total Amount
+                  Total Bill Amount
                 </p>
                 <p className="mt-1 text-sm font-semibold">
-                  {formatCurrency(payment.billAmount)}
+                  {formatCurrency(Number(payment.totalAmount))}
                 </p>
               </div>
             </div>
-            <div className="mt-3 border-t border-slate-200 pt-3 grid gap-2 sm:grid-cols-2">
+            <div className="mt-3 grid gap-2 border-t border-slate-200 pt-3 sm:grid-cols-2">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  Paid To Date
+                  Amount Already Paid
                 </p>
                 <p className="mt-1 text-sm font-semibold">
-                  {formatCurrency(payment.amountPaid)}
+                  {formatCurrency(Number(payment.totalPaid))}
                 </p>
               </div>
               <div>
@@ -167,7 +163,7 @@ export function RecordSupplierPaymentDrawer({
                   Balance Due
                 </p>
                 <p className="mt-1 text-sm font-bold text-red-600">
-                  {formatCurrency(payment.balanceDue)}
+                  {formatCurrency(Number(payment.outstanding))}
                 </p>
               </div>
             </div>
@@ -178,6 +174,7 @@ export function RecordSupplierPaymentDrawer({
             <Input
               id="sp-amount"
               type="number"
+              step="0.01"
               {...register("amountPaid", { valueAsNumber: true })}
             />
             <p className="text-xs italic text-muted-foreground">
@@ -212,10 +209,11 @@ export function RecordSupplierPaymentDrawer({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Cash">Cash</SelectItem>
-                <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                <SelectItem value="UPI">UPI</SelectItem>
-                <SelectItem value="Cheque">Cheque</SelectItem>
+                {ACCOUNT_PAYMENT_MODES.map((mode) => (
+                  <SelectItem key={mode.value} value={mode.value}>
+                    {mode.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

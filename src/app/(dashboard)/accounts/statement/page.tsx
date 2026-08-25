@@ -1,15 +1,11 @@
 ﻿"use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { FileSearch } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import {
-  accountsParties,
-  buildRunningBalances,
-  mockStatementByParty,
-} from "@/mock/accounts";
 import { PageHeader } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import {
@@ -18,65 +14,65 @@ import {
 } from "@/components/modules/accounts/AccountStatementFilter";
 import { AccountStatementSummary } from "@/components/modules/accounts/AccountStatementSummary";
 import { AccountStatementTable } from "@/components/modules/accounts/AccountStatementTable";
+import { Button } from "@/components/ui/button";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { toIsoDate, todayInputValue } from "@/lib/accounts";
+import { getAccountStatement } from "@/services/accounts.service";
 
-const defaultFilters: StatementFilters = {
-  partyId: "party-1",
-  fromDate: "2024-01-01",
-  toDate: "2024-02-28",
-};
+function yearStartInputValue(): string {
+  return `${new Date().getUTCFullYear()}-01-01`;
+}
 
 function AccountStatementContent() {
   const searchParams = useSearchParams();
-  const partyFromQuery = searchParams.get("partyId");
+  const partyIdParam = searchParams.get("partyId");
 
-  const initialFilters: StatementFilters = {
-    ...defaultFilters,
-    partyId: partyFromQuery ?? defaultFilters.partyId,
-  };
-
-  const [filters, setFilters] = useState<StatementFilters>(initialFilters);
-  const [applied, setApplied] = useState<StatementFilters>(initialFilters);
+  const [filters, setFilters] = useState<StatementFilters>({
+    partyId: partyIdParam ?? "",
+    fromDate: yearStartInputValue(),
+    toDate: todayInputValue(),
+  });
+  const [applied, setApplied] = useState<StatementFilters>({
+    partyId: partyIdParam ?? "",
+    fromDate: yearStartInputValue(),
+    toDate: todayInputValue(),
+  });
+  const [shouldFetch, setShouldFetch] = useState(Boolean(partyIdParam));
 
   useEffect(() => {
-    if (!partyFromQuery) return;
-    const next = { ...defaultFilters, partyId: partyFromQuery };
+    if (!partyIdParam) return;
+    const next: StatementFilters = {
+      partyId: partyIdParam,
+      fromDate: yearStartInputValue(),
+      toDate: todayInputValue(),
+    };
     setFilters(next);
     setApplied(next);
-  }, [partyFromQuery]);
+    setShouldFetch(true);
+  }, [partyIdParam]);
 
-  const party = accountsParties.find((p) => p.id === applied.partyId);
-  const partyName =
-    party?.name === "Al Reem"
-      ? "Al Reem Trading"
-      : party?.name ?? "Selected Party";
+  const statementParams = {
+    partyId: applied.partyId,
+    from: applied.fromDate ? toIsoDate(applied.fromDate) : undefined,
+    to: applied.toDate ? toIsoDate(applied.toDate) : undefined,
+  };
 
-  const rows = useMemo(() => {
-    const source = mockStatementByParty[applied.partyId] ?? [];
-    const filtered = source.filter((txn) => {
-      if (applied.fromDate && txn.date < applied.fromDate) return false;
-      if (applied.toDate && txn.date > applied.toDate) return false;
-      return true;
-    });
-    return buildRunningBalances(filtered);
-  }, [applied]);
-
-  const summary = useMemo(() => {
-    const totalBilled = rows.reduce((sum, row) => sum + row.debit, 0);
-    const totalReceived = rows.reduce((sum, row) => sum + row.credit, 0);
-    const outstanding = rows.length ? rows[rows.length - 1].balance : 0;
-    const lastTransactionDate = rows.length
-      ? format(new Date(rows[rows.length - 1].date), "dd MMM yyyy")
-      : "—";
-    return {
-      totalBilled,
-      totalReceived,
-      outstanding: Math.max(0, outstanding),
-      lastTransactionDate,
-    };
-  }, [rows]);
-
-  const closingBalance = rows.length ? rows[rows.length - 1].balance : 0;
-  const hasPartyData = Boolean(mockStatementByParty[applied.partyId]?.length);
+  const statementQuery = useQuery({
+    queryKey: [
+      ...QUERY_KEYS.ACCOUNT_STATEMENT,
+      {
+        partyId: applied.partyId,
+        from: applied.fromDate,
+        to: applied.toDate,
+      },
+    ],
+    queryFn: () => getAccountStatement(statementParams),
+    enabled:
+      shouldFetch &&
+      Boolean(applied.partyId) &&
+      Boolean(applied.fromDate) &&
+      Boolean(applied.toDate),
+  });
 
   function showStatement() {
     if (!filters.partyId || !filters.fromDate || !filters.toDate) {
@@ -88,13 +84,13 @@ function AccountStatementContent() {
       return;
     }
     setApplied({ ...filters });
-    const selected = accountsParties.find((p) => p.id === filters.partyId);
-    const label =
-      selected?.name === "Al Reem"
-        ? "Al Reem Trading"
-        : selected?.name ?? "party";
-    toast.success(`Statement loaded for ${label}`);
+    setShouldFetch(true);
   }
+
+  const statement = statementQuery.data?.data;
+  const lastTxn = statement?.summary.lastTransactionDate
+    ? format(new Date(statement.summary.lastTransactionDate), "dd MMM yyyy")
+    : "—";
 
   return (
     <div>
@@ -109,19 +105,33 @@ function AccountStatementContent() {
         onShow={showStatement}
       />
 
-      {!hasPartyData ? (
+      {!shouldFetch ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center">
           <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
             <FileSearch className="size-5" />
           </div>
           <h3 className="text-base font-semibold text-slate-900">
-            No transactions for this party
+            Select a party and date range
           </h3>
           <p className="mt-1 max-w-md text-sm text-muted-foreground">
-            Try another party, or widen the date range and click Show Statement.
+            Select a party and date range to view their account statement.
           </p>
         </div>
-      ) : rows.length === 0 ? (
+      ) : statementQuery.isLoading ? (
+        <TableSkeleton rows={6} />
+      ) : statementQuery.isError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+          <p className="text-sm text-red-700">Failed to load statement.</p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3"
+            onClick={() => void statementQuery.refetch()}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : !statement || statement.transactions.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center">
           <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
             <FileSearch className="size-5" />
@@ -130,21 +140,24 @@ function AccountStatementContent() {
             No transactions in this period
           </h3>
           <p className="mt-1 max-w-md text-sm text-muted-foreground">
-            Adjust the date range for {partyName} and click Show Statement.
+            Adjust the date range
+            {statement?.party.name ? ` for ${statement.party.name}` : ""} and
+            click Show Statement.
           </p>
         </div>
       ) : (
         <>
           <AccountStatementSummary
-            totalBilled={summary.totalBilled}
-            totalReceived={summary.totalReceived}
-            outstanding={summary.outstanding}
-            lastTransactionDate={summary.lastTransactionDate}
+            totalBilled={statement.summary.totalBilled}
+            totalReceived={statement.summary.totalReceived}
+            outstanding={statement.summary.outstanding}
+            lastTransactionDate={lastTxn}
           />
           <AccountStatementTable
-            rows={rows}
-            partyName={partyName}
-            closingBalance={closingBalance}
+            rows={statement.transactions}
+            partyName={statement.party.name}
+            closingBalance={statement.closingBalance}
+            balanceType={statement.balanceType}
           />
         </>
       )}

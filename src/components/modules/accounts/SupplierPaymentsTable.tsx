@@ -1,7 +1,8 @@
 "use client";
 
+import { Eye } from "lucide-react";
 import { format } from "date-fns";
-import type { MockSupplierPayment } from "@/mock/accounts";
+import type { SupplierBillPaymentRow } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SupplierPaymentStatusBadge } from "@/components/modules/accounts/SupplierPaymentStatusBadge";
 import { Button } from "@/components/ui/button";
@@ -16,15 +17,15 @@ import {
 import { cn, formatCurrency } from "@/lib/utils";
 
 interface SupplierPaymentsTableProps {
-  payments: MockSupplierPayment[];
-  onPay: (payment: MockSupplierPayment) => void;
-  onRowClick?: (payment: MockSupplierPayment) => void;
+  payments: SupplierBillPaymentRow[];
+  onPay: (payment: SupplierBillPaymentRow) => void;
+  onView: (payment: SupplierBillPaymentRow) => void;
 }
 
 export function SupplierPaymentsTable({
   payments,
   onPay,
-  onRowClick,
+  onView,
 }: SupplierPaymentsTableProps) {
   if (payments.length === 0) {
     return (
@@ -69,59 +70,61 @@ export function SupplierPaymentsTable({
           </TableHeader>
           <TableBody>
             {payments.map((row) => (
-              <TableRow
-                key={row.id}
-                className={onRowClick ? "cursor-pointer" : undefined}
-                onClick={() => onRowClick?.(row)}
-              >
-                <TableCell className="font-semibold">{row.billNo}</TableCell>
-                <TableCell>{row.supplierName}</TableCell>
+              <TableRow key={row.id}>
+                <TableCell className="font-semibold">{row.billNumber}</TableCell>
+                <TableCell>{row.supplier?.name ?? "—"}</TableCell>
                 <TableCell>
-                  {format(new Date(row.billDate), "dd MMM yyyy")}
+                  {format(new Date(row.purchaseDate), "dd MMM yyyy")}
                 </TableCell>
-                <TableCell>{formatCurrency(row.billAmount)}</TableCell>
-                <TableCell>{formatCurrency(row.amountPaid)}</TableCell>
+                <TableCell>
+                  {formatCurrency(Number(row.totalAmount))}
+                </TableCell>
+                <TableCell>
+                  {formatCurrency(Number(row.totalPaid))}
+                </TableCell>
                 <TableCell
                   className={cn(
                     "font-medium",
-                    row.balanceDue > 0 ? "text-red-600" : "text-slate-500"
+                    row.outstanding > 0 ? "text-red-600" : "text-slate-500"
                   )}
                 >
-                  {formatCurrency(row.balanceDue)}
+                  {formatCurrency(Number(row.outstanding))}
                 </TableCell>
                 <TableCell>
-                  <SupplierPaymentStatusBadge status={row.status} />
+                  <SupplierPaymentStatusBadge status={row.paymentStatus} />
                 </TableCell>
                 <TableCell>
-                  {row.status === "UNPAID" ? (
+                  <div className="flex items-center gap-2">
+                    {row.paymentStatus === "UNPAID" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
+                        onClick={() => onPay(row)}
+                      >
+                        Pay Now
+                      </Button>
+                    ) : null}
+                    {row.paymentStatus === "PARTIAL" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
+                        onClick={() => onPay(row)}
+                      >
+                        Pay Remaining
+                      </Button>
+                    ) : null}
                     <Button
                       type="button"
-                      variant="link"
-                      className="h-auto p-0 text-teal-700"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onPay(row);
-                      }}
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onView(row)}
+                      aria-label="View bill payments"
                     >
-                      Pay Now
+                      <Eye className="size-4" />
                     </Button>
-                  ) : null}
-                  {row.status === "PARTIAL" ? (
-                    <Button
-                      type="button"
-                      variant="link"
-                      className="h-auto p-0 text-teal-700"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onPay(row);
-                      }}
-                    >
-                      Pay Remaining
-                    </Button>
-                  ) : null}
-                  {row.status === "PAID" ? (
-                    <span className="text-xs text-muted-foreground">—</span>
-                  ) : null}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

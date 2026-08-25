@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { FileText, Plus } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { mockSalesBills, type MockSalesBill } from "@/mock/sales";
+import type { SalesBill } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
@@ -17,54 +18,48 @@ import { SalesStatCards } from "@/components/modules/sales/SalesStatCards";
 import { RecordPaymentDrawer } from "@/components/modules/sales/RecordPaymentDrawer";
 import { SubmitBillDialog } from "@/components/modules/sales/SubmitBillDialog";
 import { Button } from "@/components/ui/button";
+import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { getSalesBills, submitSalesBill } from "@/services/sales.service";
 
 const PAGE_SIZE = 10;
 
 export default function SalesBillsPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [bills, setBills] = useState<MockSalesBill[]>(mockSalesBills);
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<SalesBillFilter>("ALL");
   const [page, setPage] = useState(1);
-  const [submitTarget, setSubmitTarget] = useState<MockSalesBill | null>(null);
-  const [paymentTarget, setPaymentTarget] = useState<MockSalesBill | null>(
-    null
-  );
+  const [submitTarget, setSubmitTarget] = useState<SalesBill | null>(null);
+  const [paymentBillId, setPaymentBillId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
+  const filters = {
+    status: filter === "ALL" ? undefined : filter,
+    page,
+    limit: PAGE_SIZE,
+  };
 
-  const filtered = useMemo(() => {
-    if (filter === "ALL") return bills;
-    return bills.filter((bill) => bill.status === filter);
-  }, [bills, filter]);
+  const billsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.SALES_BILLS, filters],
+    queryFn: () => getSalesBills(filters),
+  });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const submitMutation = useMutation({
+    mutationFn: (id: string) => submitSalesBill(id),
+    onSuccess: () => {
+      toast.success("Bill submitted.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SALES_BILLS });
+      setSubmitTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to submit bill."));
+    },
+  });
 
-  const kpis = useMemo(() => {
-    const totalBilled = bills.reduce((sum, bill) => sum + bill.netTotal, 0);
-    const pendingPayment = bills.reduce(
-      (sum, bill) => sum + Math.max(0, bill.netTotal - bill.amountReceived),
-      0
-    );
-    const overdueCount = bills.filter(
-      (bill) =>
-        (bill.status === "SUBMITTED" || bill.status === "PAID") &&
-        bill.amountReceived < bill.netTotal
-    ).length;
-    const draftCount = bills.filter((bill) => bill.status === "DRAFT").length;
-    return {
-      totalBilled,
-      pendingPayment,
-      billsRaised: bills.length,
-      overdueCount,
-      draftCount,
-    };
-  }, [bills]);
+  const bills = billsQuery.data?.data.data ?? [];
+  const total = billsQuery.data?.data.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const summary = billsQuery.data?.data.summary;
 
   return (
     <div>
@@ -91,11 +86,9 @@ export default function SalesBillsPage() {
       />
 
       <SalesStatCards
-        totalBilled={kpis.totalBilled}
-        pendingPayment={kpis.pendingPayment}
-        billsRaised={kpis.billsRaised}
-        overdueCount={kpis.overdueCount}
-        draftCount={kpis.draftCount}
+        totalBilled={summary?.totalBilledThisMonth ?? 0}
+        pendingPayment={summary?.pendingPayment ?? 0}
+        billsRaised={summary?.billsRaised ?? 0}
       />
 
       <SalesBillFilterBar
@@ -106,20 +99,32 @@ export default function SalesBillsPage() {
         }}
       />
 
-      {loading ? (
+      {billsQuery.isLoading ? (
         <TableSkeleton rows={6} />
+      ) : billsQuery.isError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+          <p className="text-sm text-red-700">Failed to load sales bills.</p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3"
+            onClick={() => void billsQuery.refetch()}
+          >
+            Retry
+          </Button>
+        </div>
       ) : (
         <>
           <SalesBillsTable
-            bills={pageItems}
+            bills={bills}
             onAdd={() => router.push(ROUTES.SALES.NEW_BILL)}
             onSubmit={setSubmitTarget}
-            onRecordPayment={setPaymentTarget}
+            onRecordPayment={(bill) => setPaymentBillId(bill.id)}
           />
           <Pagination
             page={page}
             totalPages={totalPages}
-            totalItems={filtered.length}
+            totalItems={total}
             pageSize={PAGE_SIZE}
             onPageChange={setPage}
             label="bills"
@@ -131,52 +136,14 @@ export default function SalesBillsPage() {
         open={Boolean(submitTarget)}
         onClose={() => setSubmitTarget(null)}
         onConfirm={() => {
-          if (!submitTarget) return;
-          setBills((prev) =>
-            prev.map((bill) =>
-              bill.id === submitTarget.id
-                ? { ...bill, status: "SUBMITTED" }
-                : bill
-            )
-          );
-          toast.success("Bill submitted successfully.");
+          if (submitTarget) submitMutation.mutate(submitTarget.id);
         }}
       />
 
       <RecordPaymentDrawer
-        open={Boolean(paymentTarget)}
-        bill={paymentTarget}
-        onClose={() => setPaymentTarget(null)}
-        onSave={(values) => {
-          if (!paymentTarget) return;
-          setBills((prev) =>
-            prev.map((bill) => {
-              if (bill.id !== paymentTarget.id) return bill;
-              const amountReceived =
-                bill.amountReceived + values.amountReceived;
-              return {
-                ...bill,
-                amountReceived,
-                status:
-                  amountReceived >= bill.netTotal ? "PAID" : bill.status,
-                payments: [
-                  ...bill.payments,
-                  {
-                    id: `pay-${Date.now()}`,
-                    salesBillId: bill.id,
-                    date: values.paymentDate,
-                    method: values.paymentMode,
-                    amount: values.amountReceived,
-                    referenceNo: values.referenceNo ?? "",
-                    processedBy: "Raj Sharma",
-                    status: "SUCCESS",
-                  },
-                ],
-              };
-            })
-          );
-          toast.success("Payment recorded successfully.");
-        }}
+        open={Boolean(paymentBillId)}
+        billId={paymentBillId}
+        onClose={() => setPaymentBillId(null)}
       />
     </div>
   );

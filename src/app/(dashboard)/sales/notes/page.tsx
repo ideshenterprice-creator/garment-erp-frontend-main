@@ -1,50 +1,49 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
-import {
-  mockCreditDebitNotes,
-  type MockCreditDebitNote,
-  type NoteType,
-} from "@/mock/sales";
+import type { SalesNoteType } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
 import { CreditDebitNotesTable } from "@/components/modules/sales/CreditDebitNotesTable";
 import { NewNoteDrawer } from "@/components/modules/sales/NewNoteDrawer";
+import { Button } from "@/components/ui/button";
+import { QUERY_KEYS } from "@/constants/queryKeys";
 import { cn } from "@/lib/utils";
+import { getNotes } from "@/services/sales.service";
 
 const PAGE_SIZE = 10;
 
-type NoteFilter = "ALL" | NoteType;
+type NoteFilter = "ALL" | SalesNoteType;
 
 function SalesNotesContent() {
   const searchParams = useSearchParams();
   const billId = searchParams.get("billId") ?? undefined;
-  const [loading, setLoading] = useState(true);
-  const [notes, setNotes] =
-    useState<MockCreditDebitNote[]>(mockCreditDebitNotes);
   const [filter, setFilter] = useState<NoteFilter>("ALL");
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(Boolean(billId));
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
     if (billId) setDrawerOpen(true);
   }, [billId]);
 
-  const filtered = useMemo(() => {
-    if (filter === "ALL") return notes;
-    return notes.filter((note) => note.type === filter);
-  }, [notes, filter]);
+  const filters = {
+    type: filter === "ALL" ? undefined : filter,
+    page,
+    limit: PAGE_SIZE,
+  };
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const notesQuery = useQuery({
+    queryKey: [...QUERY_KEYS.SALES_NOTES, filters],
+    queryFn: () => getNotes(filters),
+  });
+
+  const notes = notesQuery.data?.data.data ?? [];
+  const total = notesQuery.data?.data.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div>
@@ -88,18 +87,30 @@ function SalesNotesContent() {
         ))}
       </div>
 
-      {loading ? (
+      {notesQuery.isLoading ? (
         <TableSkeleton rows={6} />
+      ) : notesQuery.isError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+          <p className="text-sm text-red-700">Failed to load notes.</p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3"
+            onClick={() => void notesQuery.refetch()}
+          >
+            Retry
+          </Button>
+        </div>
       ) : (
         <>
           <CreditDebitNotesTable
-            notes={pageItems}
+            notes={notes}
             onAdd={() => setDrawerOpen(true)}
           />
           <Pagination
             page={page}
             totalPages={totalPages}
-            totalItems={filtered.length}
+            totalItems={total}
             pageSize={PAGE_SIZE}
             onPageChange={setPage}
             label="notes"
@@ -109,13 +120,8 @@ function SalesNotesContent() {
 
       <NewNoteDrawer
         open={drawerOpen}
-        existing={notes}
         initialBillId={billId}
         onClose={() => setDrawerOpen(false)}
-        onSave={(note) => {
-          setNotes((prev) => [note, ...prev]);
-          setPage(1);
-        }}
       />
     </div>
   );

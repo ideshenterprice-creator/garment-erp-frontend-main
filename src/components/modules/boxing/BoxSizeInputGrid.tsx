@@ -1,6 +1,6 @@
 "use client";
 
-import type { BoxSizeQty } from "@/mock/boxing";
+import type { BoxSizeQty } from "@/lib/boxing";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 

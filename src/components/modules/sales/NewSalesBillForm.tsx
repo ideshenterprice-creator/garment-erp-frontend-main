@@ -5,16 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Ban, Plus, Save } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ban, Save } from "lucide-react";
 import { toast } from "sonner";
-import { mockPurchaseOrders } from "@/mock/purchaseOrders";
-import {
-  generateNextInvoiceNumber,
-  getStockForItem,
-  mockSalesBills,
-  poItemsToBillDraftItems,
-  salesContainers,
-} from "@/mock/sales";
+import type { CreateSalesBillPayload } from "@/types";
 import {
   BillItemsTable,
   type BillItemRow,
@@ -31,19 +25,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
+import { getErrorMessage } from "@/lib/errorHandler";
+import {
+  finishedStockForDesignSize,
+  poItemsToBillDraftItems,
+  toIsoDate,
+  todayInputValue,
+} from "@/lib/sales";
+import { getStock } from "@/services/inventory.service";
+import { getContainers } from "@/services/boxing.service";
+import {
+  createSalesBill,
+  submitSalesBill,
+} from "@/services/sales.service";
+import {
+  getPurchaseOrderById,
+  getPurchaseOrders,
+} from "@/services/purchaseOrders.service";
 
 const formSchema = z.object({
-  poId: z.string().min(1, "PO is required"),
+  poId: z.string().uuid("PO is required"),
   invoiceDate: z.string().min(1, "Invoice date is required"),
-  containerNo: z.string().optional(),
+  containerId: z.string().optional(),
   currency: z.string().min(1),
   exchangeRate: z.number().positive(),
   buyerPoReference: z.string().optional(),
   paymentTerms: z.string().optional(),
   shippingDestination: z.string().optional(),
   buyerName: z.string().optional(),
-  internalNote: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -51,10 +62,7 @@ type FormValues = z.infer<typeof formSchema>;
 export function NewSalesBillForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const invoiceNumber = useMemo(
-    () => generateNextInvoiceNumber(mockSalesBills),
-    []
-  );
+  const queryClient = useQueryClient();
   const [items, setItems] = useState<BillItemRow[]>([]);
   const [submitOpen, setSubmitOpen] = useState(false);
 
@@ -68,21 +76,118 @@ export function NewSalesBillForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       poId: "",
-      invoiceDate: "",
-      containerNo: "",
-      currency: "USD",
-      exchangeRate: 83.14,
+      invoiceDate: todayInputValue(),
+      containerId: "",
+      currency: "INR",
+      exchangeRate: 1,
       buyerPoReference: "",
       paymentTerms: "",
       shippingDestination: "",
       buyerName: "",
-      internalNote:
-        "Export clearance pending shipment verification from port. Check container seal before final submit.",
     },
   });
 
   const poId = watch("poId");
   const currency = watch("currency");
+  const containerId = watch("containerId");
+
+  const activePosQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, { status: "ACTIVE", limit: 100 }],
+    queryFn: () => getPurchaseOrders({ status: "ACTIVE", limit: 100 }),
+  });
+
+  const readyPosQuery = useQuery({
+    queryKey: [
+      ...QUERY_KEYS.PURCHASE_ORDERS,
+      { status: "READY_TO_SHIP", limit: 100 },
+    ],
+    queryFn: () => getPurchaseOrders({ status: "READY_TO_SHIP", limit: 100 }),
+  });
+
+  const inProdPosQuery = useQuery({
+    queryKey: [
+      ...QUERY_KEYS.PURCHASE_ORDERS,
+      { status: "IN_PRODUCTION", limit: 100 },
+    ],
+    queryFn: () => getPurchaseOrders({ status: "IN_PRODUCTION", limit: 100 }),
+  });
+
+  const purchaseOrders = useMemo(() => {
+    const merged = [
+      ...(activePosQuery.data?.data.data ?? []),
+      ...(readyPosQuery.data?.data.data ?? []),
+      ...(inProdPosQuery.data?.data.data ?? []),
+    ];
+    return Array.from(new Map(merged.map((po) => [po.id, po])).values());
+  }, [activePosQuery.data, readyPosQuery.data, inProdPosQuery.data]);
+
+  const containersQuery = useQuery({
+    queryKey: [...QUERY_KEYS.CONTAINERS, { limit: 100 }],
+    queryFn: () => getContainers({ limit: 100 }),
+  });
+
+  const containers = useMemo(() => {
+    const all = containersQuery.data?.data.data ?? [];
+    return all.filter(
+      (ctn) =>
+        (ctn.status === "READY" || ctn.status === "DISPATCHED") &&
+        (!poId || ctn.poId === poId)
+    );
+  }, [containersQuery.data, poId]);
+
+  const poDetailQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, poId],
+    queryFn: () => getPurchaseOrderById(poId),
+    enabled: Boolean(poId),
+  });
+
+  const stockQuery = useQuery({
+    queryKey: [...QUERY_KEYS.STOCK, { category: "FINISHED_GOOD", limit: 100 }],
+    queryFn: () => getStock({ category: "FINISHED_GOOD", limit: 100 }),
+  });
+
+  const stockItems = stockQuery.data?.data.data ?? [];
+
+  useEffect(() => {
+    const preset = searchParams.get("poId");
+    if (preset) setValue("poId", preset, { shouldValidate: true });
+  }, [searchParams, setValue]);
+
+  useEffect(() => {
+    if (!poId || !poDetailQuery.data?.data) {
+      if (!poId) setItems([]);
+      return;
+    }
+    const order = poDetailQuery.data.data;
+    setValue("buyerName", order.buyer?.name ?? "");
+    setValue("buyerPoReference", order.buyerPoReference ?? "");
+    setValue("paymentTerms", order.paymentTerms ?? "");
+    setValue("shippingDestination", order.shippingDestination ?? "");
+
+    const draft = poItemsToBillDraftItems(order.items ?? []);
+    setItems(
+      draft.map((row, index) => {
+        const stock = finishedStockForDesignSize(
+          stockItems,
+          row.designNumber,
+          row.sizeLabel
+        );
+        return {
+          id: `row-${row.poItemId}-${row.size}-${index}`,
+          poItemId: row.poItemId,
+          designNumber: row.designNumber,
+          garmentType: row.garmentType,
+          color: row.color,
+          size: row.size,
+          sizeLabel: row.sizeLabel,
+          quantity: 0,
+          ratePerPiece: 0,
+          availableStock: stock.available,
+          productId: stock.productId,
+        };
+      })
+    );
+  }, [poId, poDetailQuery.data, setValue, stockItems]);
 
   const subTotal = items.reduce(
     (sum, item) => sum + item.quantity * item.ratePerPiece,
@@ -93,51 +198,75 @@ export function NewSalesBillForm() {
   );
   const hasInvalidItems =
     items.length === 0 ||
-    items.some((item) => item.quantity <= 0 || item.ratePerPiece <= 0);
-
-  useEffect(() => {
-    const preset = searchParams.get("poId");
-    if (preset) {
-      setValue("poId", preset);
-    }
-  }, [searchParams, setValue]);
-
-  useEffect(() => {
-    if (!poId) {
-      setItems([]);
-      return;
-    }
-    const order = mockPurchaseOrders.find((po) => po.id === poId);
-    if (!order) return;
-
-    setValue("buyerName", order.buyer.name);
-    setValue("buyerPoReference", order.buyerPoReference);
-    setValue("paymentTerms", order.paymentTerms);
-    setValue("shippingDestination", order.shippingDestination);
-
-    const draft = poItemsToBillDraftItems(poId);
-    setItems(
-      draft.slice(0, 6).map((row, index) => ({
-        id: `row-${index}`,
-        designNumber: row.designNumber,
-        garmentType: row.garmentType,
-        color: row.color,
-        size: row.size,
-        quantity: index < 2 ? 200 : index === 2 ? 100 : 0,
-        ratePerPiece: index < 2 ? 80 : index === 2 ? 90 : 0,
-        availableStock: getStockForItem(row.designNumber, row.color, row.size),
-      }))
+    items.every((item) => item.quantity <= 0) ||
+    items.some(
+      (item) =>
+        item.quantity > 0 &&
+        (item.ratePerPiece <= 0 || !item.poItemId)
     );
-  }, [poId, setValue]);
 
-  function saveDraft() {
-    toast.success("Bill saved as draft.");
-    router.push(ROUTES.SALES.BILLS);
+  function buildPayload(values: FormValues): CreateSalesBillPayload {
+    return {
+      poId: values.poId,
+      containerId: values.containerId || undefined,
+      invoiceDate: toIsoDate(values.invoiceDate),
+      currency: values.currency,
+      exchangeRate: values.currency === "INR" ? 1 : values.exchangeRate,
+      items: items
+        .filter((item) => item.quantity > 0)
+        .map((item) => ({
+          poItemId: item.poItemId!,
+          designNumber: item.designNumber,
+          garmentType: item.garmentType,
+          color: item.color,
+          size: item.size,
+          quantity: item.quantity,
+          ratePerPiece: item.ratePerPiece,
+        })),
+    };
   }
 
-  function onSubmitValid() {
+  const createMutation = useMutation({
+    mutationFn: async ({
+      values,
+      submitAfter,
+    }: {
+      values: FormValues;
+      submitAfter: boolean;
+    }) => {
+      const created = await createSalesBill(buildPayload(values));
+      if (submitAfter) {
+        const submitted = await submitSalesBill(created.data.id);
+        return submitted.data;
+      }
+      return created.data;
+    },
+    onSuccess: (bill, variables) => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SALES_BILLS });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STOCK });
+      toast.success(
+        variables.submitAfter ? "Bill submitted." : "Bill saved as draft."
+      );
+      router.push(ROUTES.SALES.BILL_DETAIL(bill.id));
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to save sales bill."));
+    },
+  });
+
+  function saveDraft(values: FormValues) {
+    if (hasStockError || hasInvalidItems) {
+      toast.error("Fix stock and item quantities before saving.");
+      return;
+    }
+    createMutation.mutate({ values, submitAfter: false });
+  }
+
+  function confirmSubmit() {
+    const values = watch();
     if (hasStockError || hasInvalidItems) return;
-    setSubmitOpen(true);
+    createMutation.mutate({ values, submitAfter: true });
+    setSubmitOpen(false);
   }
 
   return (
@@ -153,19 +282,24 @@ export function NewSalesBillForm() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={saveDraft}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={createMutation.isPending || hasStockError || hasInvalidItems}
+            onClick={handleSubmit(saveDraft)}
+          >
             <Save className="size-4" />
             Save as Draft
           </Button>
           <Button
             type="button"
-            disabled={hasStockError || hasInvalidItems}
+            disabled={
+              createMutation.isPending || hasStockError || hasInvalidItems
+            }
             className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90 disabled:opacity-50"
-            onClick={handleSubmit(onSubmitValid)}
+            onClick={handleSubmit(() => setSubmitOpen(true))}
             title={
-              hasStockError
-                ? "Fix stock errors before submitting"
-                : undefined
+              hasStockError ? "Fix stock errors before submitting" : undefined
             }
           >
             {hasStockError ? <Ban className="size-4" /> : null}
@@ -179,12 +313,17 @@ export function NewSalesBillForm() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <div className="flex flex-col gap-2">
               <Label>Invoice No</Label>
-              <Input value={invoiceNumber} readOnly className="bg-slate-50" />
+              <Input
+                value="Auto-generated"
+                readOnly
+                disabled
+                className="bg-slate-50"
+              />
             </div>
             <div className="flex flex-col gap-2">
-              <Label>PO Number</Label>
+              <Label>PO Number *</Label>
               <Select
-                value={poId}
+                value={poId || undefined}
                 onValueChange={(value) =>
                   setValue("poId", value, { shouldValidate: true })
                 }
@@ -193,9 +332,9 @@ export function NewSalesBillForm() {
                   <SelectValue placeholder="Select PO" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockPurchaseOrders.map((po) => (
+                  {purchaseOrders.map((po) => (
                     <SelectItem key={po.id} value={po.id}>
-                      {po.poNumber}
+                      {po.poNumber} ({po.status})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -206,19 +345,38 @@ export function NewSalesBillForm() {
             </div>
             <div className="flex flex-col gap-2">
               <Label>Buyer PO Reference</Label>
-              <Input readOnly className="bg-slate-50" {...register("buyerPoReference")} />
+              <Input
+                readOnly
+                disabled
+                className="bg-slate-50"
+                {...register("buyerPoReference")}
+              />
             </div>
             <div className="flex flex-col gap-2">
               <Label>Buyer</Label>
-              <Input readOnly className="bg-slate-50" {...register("buyerName")} />
+              <Input
+                readOnly
+                disabled
+                className="bg-slate-50"
+                {...register("buyerName")}
+              />
             </div>
             <div className="flex flex-col gap-2">
               <Label>Payment Terms</Label>
-              <Input readOnly className="bg-slate-50" {...register("paymentTerms")} />
+              <Input
+                readOnly
+                disabled
+                className="bg-slate-50"
+                {...register("paymentTerms")}
+              />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="invoiceDate">Invoice Date</Label>
-              <Input id="invoiceDate" type="date" {...register("invoiceDate")} />
+              <Label htmlFor="invoiceDate">Invoice Date *</Label>
+              <Input
+                id="invoiceDate"
+                type="date"
+                {...register("invoiceDate")}
+              />
               {errors.invoiceDate ? (
                 <p className="text-sm text-destructive">
                   {errors.invoiceDate.message}
@@ -226,21 +384,23 @@ export function NewSalesBillForm() {
               ) : null}
             </div>
             <div className="flex flex-col gap-2">
-              <Label>Container No</Label>
+              <Label>Container</Label>
               <Select
-                value={watch("containerNo")}
-                onValueChange={(value) => setValue("containerNo", value)}
+                value={containerId || "NONE"}
+                onValueChange={(value) =>
+                  setValue("containerId", value === "NONE" ? "" : value)
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select container" />
                 </SelectTrigger>
                 <SelectContent>
-                  {salesContainers.map((ctn) => (
-                    <SelectItem key={ctn.id} value={ctn.containerNumber}>
+                  <SelectItem value="NONE">None</SelectItem>
+                  {containers.map((ctn) => (
+                    <SelectItem key={ctn.id} value={ctn.id}>
                       {ctn.containerNumber}
                     </SelectItem>
                   ))}
-                  <SelectItem value="MSCU-99210-4">MSCU-99210-4</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -248,7 +408,10 @@ export function NewSalesBillForm() {
               <Label>Currency</Label>
               <Select
                 value={currency}
-                onValueChange={(value) => setValue("currency", value)}
+                onValueChange={(value) => {
+                  setValue("currency", value);
+                  if (value === "INR") setValue("exchangeRate", 1);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -275,6 +438,7 @@ export function NewSalesBillForm() {
               <Label>Shipping Destination</Label>
               <Input
                 readOnly
+                disabled
                 className="bg-slate-50"
                 {...register("shippingDestination")}
               />
@@ -283,39 +447,41 @@ export function NewSalesBillForm() {
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-slate-900">Bill Items</h2>
-            <Button type="button" variant="ghost" className="text-teal-700">
-              <Plus className="size-4" />
-              Add Item
-            </Button>
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-slate-900">
+              Bill Items
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Rows are generated from PO size quantities. Enter bill qty and
+              rate.
+            </p>
           </div>
 
-          <BillItemsTable
-            items={items}
-            onChangeQty={(id, quantity) =>
-              setItems((prev) =>
-                prev.map((item) =>
-                  item.id === id ? { ...item, quantity } : item
+          {poId && items.length === 0 ? (
+            <p className="rounded-lg bg-amber-50 px-3 py-3 text-sm text-amber-800">
+              Selected PO has no size quantities to bill.
+            </p>
+          ) : (
+            <BillItemsTable
+              items={items}
+              onChangeQty={(id, quantity) =>
+                setItems((prev) =>
+                  prev.map((item) =>
+                    item.id === id ? { ...item, quantity } : item
+                  )
                 )
-              )
-            }
-            onChangeRate={(id, rate) =>
-              setItems((prev) =>
-                prev.map((item) =>
-                  item.id === id ? { ...item, ratePerPiece: rate } : item
+              }
+              onChangeRate={(id, rate) =>
+                setItems((prev) =>
+                  prev.map((item) =>
+                    item.id === id ? { ...item, ratePerPiece: rate } : item
+                  )
                 )
-              )
-            }
-          />
+              }
+            />
+          )}
 
-          <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="rounded-lg bg-slate-50 px-3 py-3 text-sm max-w-md">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                Internal Note
-              </p>
-              <p className="mt-1 text-slate-600">{watch("internalNote")}</p>
-            </div>
+          <div className="mt-5 flex justify-end">
             <BillTotalsSection subTotal={subTotal} netTotal={subTotal} />
           </div>
         </div>
@@ -324,10 +490,7 @@ export function NewSalesBillForm() {
       <SubmitBillDialog
         open={submitOpen}
         onClose={() => setSubmitOpen(false)}
-        onConfirm={() => {
-          toast.success("Bill submitted successfully.");
-          router.push(ROUTES.SALES.BILLS);
-        }}
+        onConfirm={confirmSubmit}
       />
     </div>
   );

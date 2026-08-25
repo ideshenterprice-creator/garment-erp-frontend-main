@@ -14,13 +14,16 @@ import { cn, formatCurrency } from "@/lib/utils";
 
 export interface BillItemRow {
   id: string;
+  poItemId?: string;
   designNumber: string;
   garmentType: string;
   color: string;
   size: string;
+  sizeLabel?: string;
   quantity: number;
   ratePerPiece: number;
   availableStock: number;
+  productId?: string | null;
 }
 
 interface BillItemsTableProps {

@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import type { MockSalesBill } from "@/mock/sales";
+import type { SalesBill } from "@/types";
 import { Info } from "lucide-react";
 import { ROUTES } from "@/constants/routes";
 
 interface BillDetailCardProps {
-  bill: MockSalesBill;
+  bill: SalesBill;
 }
 
 export function BillDetailCard({ bill }: BillDetailCardProps) {
@@ -25,7 +25,7 @@ export function BillDetailCard({ bill }: BillDetailCardProps) {
             href={`/masters/party/${bill.buyerId}`}
             className="mt-1 inline-block text-sm font-medium text-[#1b3a3a] hover:underline"
           >
-            {bill.buyer.name}
+            {bill.buyer?.name ?? "—"}
           </Link>
         </div>
         <div>
@@ -36,7 +36,7 @@ export function BillDetailCard({ bill }: BillDetailCardProps) {
             href={ROUTES.PURCHASE_ORDERS.DETAIL(bill.poId)}
             className="mt-1 inline-block text-sm font-medium text-[#1b3a3a] hover:underline"
           >
-            {bill.po.poNumber}
+            {bill.po?.poNumber ?? bill.poId}
           </Link>
         </div>
         <div>
@@ -45,23 +45,33 @@ export function BillDetailCard({ bill }: BillDetailCardProps) {
           </p>
           <p className="mt-1 text-sm font-medium text-slate-900">
             {bill.currency}
-            {bill.currency === "USD" ? " (United States Dollar)" : ""}
+            {bill.exchangeRate && bill.currency !== "INR"
+              ? ` · Rate ${bill.exchangeRate}`
+              : ""}
           </p>
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Carton No.
+            Container
           </p>
           <p className="mt-1 text-sm font-medium text-slate-900">
-            {bill.containerNo || "—"}
+            {bill.container?.containerNumber ?? "—"}
           </p>
         </div>
-        <div className="sm:col-span-2">
+        <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Billing Address
+            Buyer PO Ref
           </p>
           <p className="mt-1 text-sm font-medium text-slate-900">
-            {bill.billingAddress}
+            {bill.po?.buyerPoReference ?? "—"}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            Destination
+          </p>
+          <p className="mt-1 text-sm font-medium text-slate-900">
+            {bill.container?.destination ?? "—"}
           </p>
         </div>
       </div>

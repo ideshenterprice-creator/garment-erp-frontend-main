@@ -1,63 +1,67 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { buildRegisterRows, mockSalesBills } from "@/mock/sales";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
-import { Pagination } from "@/components/common/Pagination";
 import {
   SalesRegisterFilterBar,
   type SalesRegisterFilters,
 } from "@/components/modules/sales/SalesRegisterFilterBar";
 import { SalesRegisterSummary } from "@/components/modules/sales/SalesRegisterSummary";
 import { SalesRegisterTable } from "@/components/modules/sales/SalesRegisterTable";
+import { Button } from "@/components/ui/button";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { currentMonthRange, toIsoDate } from "@/lib/sales";
+import { getParties } from "@/services/masters.service";
+import { getPurchaseOrders } from "@/services/purchaseOrders.service";
+import { getSalesRegister } from "@/services/sales.service";
 
-const PAGE_SIZE = 10;
+const month = currentMonthRange();
 
 const defaultFilters: SalesRegisterFilters = {
-  fromDate: "",
-  toDate: "",
+  fromDate: month.from,
+  toDate: month.to,
   buyerId: "ALL",
   poId: "ALL",
 };
 
 export default function SalesRegisterPage() {
-  const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState<SalesRegisterFilters>(defaultFilters);
-  const [applied, setApplied] = useState<SalesRegisterFilters>(defaultFilters);
-  const [page, setPage] = useState(1);
+  const [draftFilters, setDraftFilters] =
+    useState<SalesRegisterFilters>(defaultFilters);
+  const [applied, setApplied] =
+    useState<SalesRegisterFilters>(defaultFilters);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const rows = useMemo(() => {
-    const all = buildRegisterRows(mockSalesBills);
-    return all.filter((row) => {
-      const bill = mockSalesBills.find((item) => item.id === row.id);
-      if (!bill) return false;
-      if (applied.buyerId !== "ALL" && bill.buyerId !== applied.buyerId) {
-        return false;
-      }
-      if (applied.poId !== "ALL" && bill.poId !== applied.poId) return false;
-      if (applied.fromDate && row.invoiceDate < applied.fromDate) return false;
-      if (applied.toDate && row.invoiceDate > applied.toDate) return false;
-      return true;
-    });
-  }, [applied]);
-
-  const summary = useMemo(
+  const queryFilters = useMemo(
     () => ({
-      totalSales: rows.reduce((sum, row) => sum + row.netAmount, 0),
-      totalPieces: rows.reduce((sum, row) => sum + row.totalPieces, 0),
-      outstanding: rows.reduce((sum, row) => sum + row.outstanding, 0),
+      from: applied.fromDate ? toIsoDate(applied.fromDate) : undefined,
+      to: applied.toDate ? toIsoDate(applied.toDate) : undefined,
+      buyerId: applied.buyerId === "ALL" ? undefined : applied.buyerId,
+      poId: applied.poId === "ALL" ? undefined : applied.poId,
     }),
-    [rows]
+    [applied]
   );
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const pageItems = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const registerQuery = useQuery({
+    queryKey: [...QUERY_KEYS.SALES_BILLS, "register", queryFilters],
+    queryFn: () => getSalesRegister(queryFilters),
+    enabled: Boolean(applied.fromDate && applied.toDate),
+  });
+
+  const buyersQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PARTIES, { type: "BUYER", limit: 100 }],
+    queryFn: () => getParties({ type: "BUYER", limit: 100 }),
+  });
+
+  const posQuery = useQuery({
+    queryKey: [...QUERY_KEYS.PURCHASE_ORDERS, { limit: 100 }],
+    queryFn: () => getPurchaseOrders({ limit: 100 }),
+  });
+
+  const summary = registerQuery.data?.data.summary;
+  const bills = registerQuery.data?.data.bills ?? [];
+  const totals = registerQuery.data?.data.totals;
 
   return (
     <div>
@@ -67,33 +71,36 @@ export default function SalesRegisterPage() {
       />
 
       <SalesRegisterFilterBar
-        filters={filters}
-        onChange={setFilters}
-        onApply={() => {
-          setApplied(filters);
-          setPage(1);
-        }}
+        filters={draftFilters}
+        buyers={buyersQuery.data?.data.data ?? []}
+        purchaseOrders={posQuery.data?.data.data ?? []}
+        onChange={setDraftFilters}
+        onApply={() => setApplied(draftFilters)}
+        onExport={() => toast.message("Export coming soon.")}
       />
 
-      <SalesRegisterSummary
-        totalSales={summary.totalSales}
-        totalPieces={summary.totalPieces}
-        outstanding={summary.outstanding}
-      />
-
-      {loading ? (
+      {registerQuery.isLoading ? (
         <TableSkeleton rows={6} />
+      ) : registerQuery.isError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+          <p className="text-sm text-red-700">Failed to load sales register.</p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3"
+            onClick={() => void registerQuery.refetch()}
+          >
+            Retry
+          </Button>
+        </div>
       ) : (
         <>
-          <SalesRegisterTable rows={pageItems} totalsFrom={rows} />
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            totalItems={rows.length}
-            pageSize={PAGE_SIZE}
-            onPageChange={setPage}
-            label="invoices"
+          <SalesRegisterSummary
+            totalSales={summary?.totalSales ?? 0}
+            totalPieces={summary?.totalPieces ?? 0}
+            outstanding={summary?.outstanding ?? 0}
           />
+          <SalesRegisterTable bills={bills} totals={totals} />
         </>
       )}
     </div>

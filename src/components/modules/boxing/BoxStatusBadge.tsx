@@ -1,4 +1,4 @@
-import type { BoxStatus } from "@/mock/boxing";
+import type { BoxStatus } from "@/types";
 import { cn } from "@/lib/utils";
 
 const statusClass: Record<BoxStatus, string> = {
@@ -16,7 +16,7 @@ export function BoxStatusBadge({ status }: BoxStatusBadgeProps) {
     <span
       className={cn(
         "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide",
-        statusClass[status]
+        statusClass[status] ?? statusClass.PENDING
       )}
     >
       {status}

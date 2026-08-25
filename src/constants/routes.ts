@@ -38,6 +38,8 @@ export const ROUTES = {
   },
   BOXING: {
     BOXES: "/boxing/boxes",
+    CONTAINERS: "/boxing/containers",
+    CONTAINER_DETAIL: (id: string) => `/boxing/containers/${id}`,
   },
   SALES: {
     BILLS: "/sales/bills",

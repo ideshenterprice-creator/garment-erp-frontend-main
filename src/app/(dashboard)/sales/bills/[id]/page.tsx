@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -12,7 +13,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { mockSalesBills, type MockSalesBill } from "@/mock/sales";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { BillDetailCard } from "@/components/modules/sales/BillDetailCard";
@@ -29,40 +29,55 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
+import { getErrorMessage } from "@/lib/errorHandler";
 import { formatCurrency } from "@/lib/utils";
+import {
+  getSalesBillById,
+  returnSalesBill,
+} from "@/services/sales.service";
 
 export default function SalesBillDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [bills, setBills] = useState<MockSalesBill[]>(mockSalesBills);
+  const queryClient = useQueryClient();
+  const billId = typeof params.id === "string" ? params.id : "";
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 350);
-    return () => clearTimeout(timer);
-  }, []);
+  const billQuery = useQuery({
+    queryKey: [...QUERY_KEYS.SALES_BILLS, billId],
+    queryFn: () => getSalesBillById(billId),
+    enabled: Boolean(billId),
+  });
 
-  const bill = useMemo(
-    () => bills.find((item) => item.id === params.id),
-    [bills, params.id]
-  );
+  const returnMutation = useMutation({
+    mutationFn: (reason: string) => returnSalesBill(billId, reason),
+    onSuccess: () => {
+      toast.success("Bill returned.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SALES_BILLS });
+      setReturnOpen(false);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to return bill."));
+    },
+  });
 
-  if (loading) return <TableSkeleton rows={8} />;
+  if (billQuery.isLoading) return <TableSkeleton rows={8} />;
 
-  if (!bill) {
+  if (billQuery.isError || !billQuery.data?.data) {
     return (
       <EmptyState
         title="Invoice not found"
-        description="This sales bill does not exist."
+        description="This sales bill does not exist or failed to load."
         actionLabel="Back to Sales Bills"
         onAction={() => router.push(ROUTES.SALES.BILLS)}
       />
     );
   }
 
+  const bill = billQuery.data.data;
   const items = bill.items ?? [];
 
   return (
@@ -92,9 +107,9 @@ export default function SalesBillDetailPage() {
               className="font-medium text-[#1b3a3a] hover:underline"
               onClick={() => router.push(`/masters/party/${bill.buyerId}`)}
             >
-              {bill.buyer.name}
+              {bill.buyer?.name}
             </button>
-            , {bill.buyer.city} —{" "}
+            {bill.buyer?.city ? `, ${bill.buyer.city}` : ""} —{" "}
             <button
               type="button"
               className="font-medium text-[#1b3a3a] hover:underline"
@@ -102,7 +117,7 @@ export default function SalesBillDetailPage() {
                 router.push(ROUTES.PURCHASE_ORDERS.DETAIL(bill.poId))
               }
             >
-              {bill.po.poNumber}
+              {bill.po?.poNumber}
             </button>{" "}
             — {format(new Date(bill.invoiceDate), "dd MMM yyyy")}
           </p>
@@ -128,15 +143,17 @@ export default function SalesBillDetailPage() {
               Raise Credit/Debit Note
             </Button>
           ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            className="border-red-200 text-red-600 hover:bg-red-50"
-            onClick={() => setReturnOpen(true)}
-          >
-            <Undo2 className="size-4" />
-            Return Bill
-          </Button>
+          {bill.status !== "RETURNED" ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="border-red-200 text-red-600 hover:bg-red-50"
+              onClick={() => setReturnOpen(true)}
+            >
+              <Undo2 className="size-4" />
+              Return Bill
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -160,6 +177,7 @@ export default function SalesBillDetailPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Item Description</TableHead>
+                  <TableHead>Size</TableHead>
                   <TableHead>Quantity</TableHead>
                   <TableHead>Unit Price</TableHead>
                   <TableHead>Total</TableHead>
@@ -168,7 +186,7 @@ export default function SalesBillDetailPage() {
               <TableBody>
                 {items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-muted-foreground">
+                    <TableCell colSpan={5} className="text-muted-foreground">
                       No line items on this invoice.
                     </TableCell>
                   </TableRow>
@@ -178,9 +196,10 @@ export default function SalesBillDetailPage() {
                       <TableCell>
                         <p className="font-medium">{item.garmentType}</p>
                         <p className="text-xs text-muted-foreground">
-                          {item.designNumber}
+                          {item.designNumber} · {item.color}
                         </p>
                       </TableCell>
+                      <TableCell>{item.size}</TableCell>
                       <TableCell>
                         {item.quantity.toLocaleString("en-IN")}
                       </TableCell>
@@ -201,7 +220,11 @@ export default function SalesBillDetailPage() {
               Net Amount Payable
             </p>
             <p className="text-2xl font-bold text-slate-900">
-              {formatCurrency(bill.netTotal)}
+              {formatCurrency(Number(bill.netTotal))}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Subtotal {formatCurrency(Number(bill.subTotal))} · GST{" "}
+              {formatCurrency(Number(bill.gstAmount))}
             </p>
           </div>
         </div>
@@ -216,49 +239,15 @@ export default function SalesBillDetailPage() {
 
       <RecordPaymentDrawer
         open={paymentOpen}
-        bill={bill}
+        billId={bill.id}
         onClose={() => setPaymentOpen(false)}
-        onSave={(values) => {
-          setBills((prev) =>
-            prev.map((item) => {
-              if (item.id !== bill.id) return item;
-              const amountReceived = item.amountReceived + values.amountReceived;
-              return {
-                ...item,
-                amountReceived,
-                status:
-                  amountReceived >= item.netTotal ? "PAID" : item.status,
-                payments: [
-                  ...item.payments,
-                  {
-                    id: `pay-${Date.now()}`,
-                    salesBillId: item.id,
-                    date: values.paymentDate,
-                    method: values.paymentMode,
-                    amount: values.amountReceived,
-                    referenceNo: values.referenceNo ?? "",
-                    processedBy: "Raj Sharma",
-                    status: "SUCCESS",
-                  },
-                ],
-              };
-            })
-          );
-        }}
       />
 
       <ReturnBillDialog
         open={returnOpen}
         invoiceNumber={bill.invoiceNumber}
         onClose={() => setReturnOpen(false)}
-        onConfirm={() => {
-          setBills((prev) =>
-            prev.map((item) =>
-              item.id === bill.id ? { ...item, status: "RETURNED" } : item
-            )
-          );
-          toast.success("Bill returned successfully");
-        }}
+        onConfirm={(reason) => returnMutation.mutate(reason)}
       />
     </div>
   );

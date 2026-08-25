@@ -1,8 +1,7 @@
 "use client";
 
 import { Filter } from "lucide-react";
-import { mockPurchaseOrders } from "@/mock/purchaseOrders";
-import { salesBuyers } from "@/mock/sales";
+import type { Party, PurchaseOrder } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,18 +22,24 @@ export interface SalesRegisterFilters {
 
 interface SalesRegisterFilterBarProps {
   filters: SalesRegisterFilters;
+  buyers: Party[];
+  purchaseOrders: PurchaseOrder[];
   onChange: (filters: SalesRegisterFilters) => void;
   onApply: () => void;
+  onExport?: () => void;
 }
 
 export function SalesRegisterFilterBar({
   filters,
+  buyers,
+  purchaseOrders,
   onChange,
   onApply,
+  onExport,
 }: SalesRegisterFilterBarProps) {
   return (
     <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5 xl:items-end">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6 xl:items-end">
         <div className="flex flex-col gap-2">
           <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
             From
@@ -74,7 +79,7 @@ export function SalesRegisterFilterBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All Buyers</SelectItem>
-              {salesBuyers.map((buyer) => (
+              {buyers.map((buyer) => (
                 <SelectItem key={buyer.id} value={buyer.id}>
                   {buyer.name}
                 </SelectItem>
@@ -95,7 +100,7 @@ export function SalesRegisterFilterBar({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All POs</SelectItem>
-              {mockPurchaseOrders.map((po) => (
+              {purchaseOrders.map((po) => (
                 <SelectItem key={po.id} value={po.id}>
                   {po.poNumber}
                 </SelectItem>
@@ -110,6 +115,9 @@ export function SalesRegisterFilterBar({
         >
           <Filter className="size-4" />
           Apply Filter
+        </Button>
+        <Button type="button" variant="outline" onClick={onExport}>
+          Export
         </Button>
       </div>
     </div>

@@ -19,6 +19,8 @@ export interface MockSalesPayment {
 export interface MockSalesBill extends SalesBill {
   containerNo: string;
   buyerPoReference: string;
+  paymentTerms?: string;
+  shippingDestination?: string;
   totalPieces: number;
   amountReceived: number;
   payments: MockSalesPayment[];

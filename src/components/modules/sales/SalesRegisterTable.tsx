@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import type { MockSalesRegisterRow } from "@/mock/sales";
+import type { SalesRegisterBill, SalesRegisterResponse } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
   Table,
@@ -14,15 +14,15 @@ import {
 import { cn, formatCurrency } from "@/lib/utils";
 
 interface SalesRegisterTableProps {
-  rows: MockSalesRegisterRow[];
-  totalsFrom?: MockSalesRegisterRow[];
+  bills: SalesRegisterBill[];
+  totals?: SalesRegisterResponse["totals"];
 }
 
 export function SalesRegisterTable({
-  rows,
-  totalsFrom,
+  bills,
+  totals,
 }: SalesRegisterTableProps) {
-  if (rows.length === 0) {
+  if (bills.length === 0) {
     return (
       <EmptyState
         title="No register entries"
@@ -31,15 +31,19 @@ export function SalesRegisterTable({
     );
   }
 
-  const totalsSource = totalsFrom ?? rows;
-  const totals = totalsSource.reduce(
-    (acc, row) => ({
-      pieces: acc.pieces + row.totalPieces,
-      net: acc.net + row.netAmount,
-      received: acc.received + row.amountReceived,
-      outstanding: acc.outstanding + row.outstanding,
-    }),
-    { pieces: 0, net: 0, received: 0, outstanding: 0 }
+  const totalPieces =
+    totals?.totalPieces ??
+    bills.reduce((sum, bill) => sum + Number(bill.totalPieces ?? 0), 0);
+  const totalAmount =
+    totals?.totalAmount ??
+    bills.reduce((sum, bill) => sum + Number(bill.netTotal ?? 0), 0);
+  const totalReceived = bills.reduce(
+    (sum, bill) => sum + Number(bill.amountPaid ?? 0),
+    0
+  );
+  const totalOutstanding = bills.reduce(
+    (sum, bill) => sum + Number(bill.outstanding ?? 0),
+    0
   );
 
   return (
@@ -60,40 +64,52 @@ export function SalesRegisterTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell className="font-semibold">
-                  {row.invoiceNumber}
-                </TableCell>
-                <TableCell>
-                  {format(new Date(row.invoiceDate), "dd MMM yyyy")}
-                </TableCell>
-                <TableCell>{row.buyerName}</TableCell>
-                <TableCell>{row.poNumber}</TableCell>
-                <TableCell>{row.totalPieces.toLocaleString("en-IN")}</TableCell>
-                <TableCell>{formatCurrency(row.netAmount)}</TableCell>
-                <TableCell>{formatCurrency(row.amountReceived)}</TableCell>
-                <TableCell>{formatCurrency(row.outstanding)}</TableCell>
-                <TableCell>
-                  <span
-                    className={cn(
-                      "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase",
-                      row.paymentStatus === "PAID"
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-amber-50 text-amber-800"
-                    )}
-                  >
-                    {row.paymentStatus}
-                  </span>
-                </TableCell>
-              </TableRow>
-            ))}
+            {bills.map((bill) => {
+              const paymentStatus =
+                Number(bill.outstanding ?? 0) <= 0 ? "PAID" : "PENDING";
+              return (
+                <TableRow key={bill.id}>
+                  <TableCell className="font-semibold">
+                    {bill.invoiceNumber}
+                  </TableCell>
+                  <TableCell>
+                    {format(new Date(bill.invoiceDate), "dd MMM yyyy")}
+                  </TableCell>
+                  <TableCell>{bill.buyer?.name ?? "—"}</TableCell>
+                  <TableCell>{bill.po?.poNumber ?? bill.poId}</TableCell>
+                  <TableCell>
+                    {Number(bill.totalPieces ?? 0).toLocaleString("en-IN")}
+                  </TableCell>
+                  <TableCell>
+                    {formatCurrency(Number(bill.netTotal))}
+                  </TableCell>
+                  <TableCell>
+                    {formatCurrency(Number(bill.amountPaid ?? 0))}
+                  </TableCell>
+                  <TableCell>
+                    {formatCurrency(Number(bill.outstanding ?? 0))}
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className={cn(
+                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase",
+                        paymentStatus === "PAID"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-amber-50 text-amber-800"
+                      )}
+                    >
+                      {paymentStatus}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             <TableRow className="bg-slate-50 font-bold hover:bg-slate-50">
               <TableCell colSpan={4}>Totals</TableCell>
-              <TableCell>{totals.pieces.toLocaleString("en-IN")}</TableCell>
-              <TableCell>{formatCurrency(totals.net)}</TableCell>
-              <TableCell>{formatCurrency(totals.received)}</TableCell>
-              <TableCell>{formatCurrency(totals.outstanding)}</TableCell>
+              <TableCell>{totalPieces.toLocaleString("en-IN")}</TableCell>
+              <TableCell>{formatCurrency(totalAmount)}</TableCell>
+              <TableCell>{formatCurrency(totalReceived)}</TableCell>
+              <TableCell>{formatCurrency(totalOutstanding)}</TableCell>
               <TableCell />
             </TableRow>
           </TableBody>

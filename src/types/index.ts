@@ -866,6 +866,7 @@ export interface PaginatedResponseLike<T> {
 export interface SalesBillItem {
   id: string;
   salesBillId: string;
+  poItemId?: string;
   designNumber: string;
   garmentType: string;
   color: string;
@@ -875,16 +876,40 @@ export interface SalesBillItem {
   amount: number;
 }
 
+export interface SalesPaymentHistoryItem {
+  id: string;
+  salesBillId: string;
+  date: string;
+  paymentMode: string;
+  amount: number;
+  referenceNo: string | null;
+  processedBy: string;
+  status: "SUCCESS" | "PENDING";
+}
+
+export interface SalesBillPaymentRecord {
+  totalPaid: number;
+  outstanding: number;
+}
+
 export interface SalesBill {
   id: string;
   invoiceNumber: string;
   poId: string;
-  po: PurchaseOrder;
+  po: Pick<PurchaseOrder, "id" | "poNumber" | "status"> & {
+    buyerPoReference?: string;
+  };
   buyerId: string;
-  buyer: Party;
+  buyer: Pick<Party, "id" | "name" | "city" | "country" | "type">;
+  containerId?: string | null;
+  container?: {
+    id: string;
+    containerNumber: string;
+    status?: ContainerStatus;
+    destination?: string;
+  } | null;
   invoiceDate: string;
-  paymentTerms: string;
-  shippingDestination: string;
+  submittedAt?: string | null;
   currency: string;
   exchangeRate: number;
   subTotal: number;
@@ -892,6 +917,92 @@ export interface SalesBill {
   netTotal: number;
   status: SalesBillStatus;
   items?: SalesBillItem[];
+  totalPieces?: number;
+  paymentRecord?: SalesBillPaymentRecord;
+  payment?: {
+    amountPaid: number;
+    outstanding: number;
+  };
+  paymentHistory?: SalesPaymentHistoryItem[];
+}
+
+export interface CreateSalesBillItemPayload {
+  poItemId: string;
+  designNumber: string;
+  garmentType: string;
+  color: string;
+  size: string;
+  quantity: number;
+  ratePerPiece: number;
+}
+
+export interface CreateSalesBillPayload {
+  poId: string;
+  containerId?: string;
+  invoiceDate: string;
+  currency: string;
+  exchangeRate: number;
+  items: CreateSalesBillItemPayload[];
+}
+
+export interface RecordSalesPaymentPayload {
+  amountReceived: number;
+  paymentDate: string;
+  paymentMode: string;
+  referenceNo?: string;
+}
+
+export interface SalesBillsListSummary {
+  totalBilledThisMonth: number;
+  pendingPayment: number;
+  billsRaised: number;
+}
+
+export interface SalesBillsListResponse
+  extends PaginatedResponseLike<SalesBill> {
+  summary?: SalesBillsListSummary;
+}
+
+export type SalesNoteType = "CREDIT" | "DEBIT";
+
+export interface SalesNote {
+  id: string;
+  noteNumber: string;
+  type: SalesNoteType;
+  salesBillId: string;
+  buyerId: string;
+  amount: number;
+  reason: string;
+  date: string;
+  salesBill?: Pick<SalesBill, "id" | "invoiceNumber" | "netTotal" | "status">;
+  buyer?: Pick<Party, "id" | "name" | "type">;
+}
+
+export interface CreateSalesNotePayload {
+  type: SalesNoteType;
+  salesBillId: string;
+  amount: number;
+  reason: string;
+  date: string;
+}
+
+export interface SalesRegisterBill extends SalesBill {
+  totalPieces: number;
+  amountPaid: number;
+  outstanding: number;
+}
+
+export interface SalesRegisterResponse {
+  summary: {
+    totalSales: number;
+    totalPieces: number;
+    outstanding: number;
+  };
+  bills: SalesRegisterBill[];
+  totals: {
+    totalAmount: number;
+    totalPieces: number;
+  };
 }
 
 export interface KarigarPayment {
@@ -912,4 +1023,107 @@ export interface KarigarPayment {
   paidAt: string | null;
   paymentMode: string;
   referenceNo: string;
+}
+
+export type BoxStatus = "PACKED" | "LOADED" | "PENDING";
+
+export type ContainerStatus = "LOADING" | "READY" | "DISPATCHED" | "PENDING";
+
+export interface BoxPacking extends SizeBreakdown {
+  id: string;
+  boxNumber: string;
+  poId: string;
+  poItemId: string;
+  designNumber: string;
+  color: string;
+  totalPieces: number;
+  containerId: string | null;
+  status: BoxStatus;
+  createdAt: string;
+  updatedAt?: string;
+  po?: Pick<PurchaseOrder, "id" | "poNumber" | "status"> & {
+    buyer?: Pick<Party, "id" | "name" | "city" | "country">;
+  };
+  poItem?: Pick<POItem, "id" | "designNumber" | "garmentType" | "color">;
+  container?: {
+    id: string;
+    containerNumber: string;
+    status: ContainerStatus;
+  } | null;
+}
+
+export interface CreateBoxPayload extends SizeBreakdown {
+  poId: string;
+  poItemId: string;
+  designNumber: string;
+  color: string;
+}
+
+export interface BoxesListSummary {
+  boxesPackedThisMonth?: number;
+  totalPiecesPacked?: number;
+  boxesLoadedInContainer?: number;
+}
+
+export interface BoxesListResponse extends PaginatedResponseLike<BoxPacking> {
+  summary?: BoxesListSummary;
+}
+
+export interface Container {
+  id: string;
+  containerNumber: string;
+  poId: string;
+  buyerId: string;
+  destination: string;
+  dispatchDate: string | null;
+  status: ContainerStatus;
+  createdAt: string;
+  updatedAt?: string;
+  buyer?: Pick<Party, "id" | "name" | "city" | "country">;
+  po?: Pick<PurchaseOrder, "id" | "poNumber" | "status">;
+  boxes?: BoxPacking[];
+  boxCount?: number;
+  totalPieces?: number;
+}
+
+export interface ContainerSizeSummary {
+  total_0_3M: number;
+  total_3_6M: number;
+  total_6_9M: number;
+  total_9_12M: number;
+  total_12_18M: number;
+  total_18_24M: number;
+  grandTotalPieces: number;
+  boxCount: number;
+}
+
+export interface ContainerDetail extends Container {
+  boxes: BoxPacking[];
+  sizeSummary: ContainerSizeSummary;
+}
+
+export interface CreateContainerPayload {
+  poId: string;
+  destination: string;
+  dispatchDate?: string;
+}
+
+export interface AddBoxToContainerPayload {
+  boxId: string;
+}
+
+export interface MarkDispatchedPayload {
+  dispatchDate: string;
+}
+
+export interface BoxFilters {
+  poId: string;
+  status: "ALL" | BoxStatus;
+  from: string;
+  to: string;
+}
+
+export interface ContainerFilters {
+  poId: string;
+  status: "ALL" | ContainerStatus;
 }

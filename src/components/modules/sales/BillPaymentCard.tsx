@@ -2,7 +2,7 @@
 
 import { Banknote } from "lucide-react";
 import { format } from "date-fns";
-import type { MockSalesBill } from "@/mock/sales";
+import type { SalesBill } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -15,7 +15,7 @@ import {
 import { cn, formatCurrency } from "@/lib/utils";
 
 interface BillPaymentCardProps {
-  bill: MockSalesBill;
+  bill: SalesBill;
   onRecordPayment?: () => void;
 }
 
@@ -23,9 +23,17 @@ export function BillPaymentCard({
   bill,
   onRecordPayment,
 }: BillPaymentCardProps) {
-  const outstanding = Math.max(0, bill.netTotal - bill.amountReceived);
+  const totalPaid =
+    bill.paymentRecord?.totalPaid ?? bill.payment?.amountPaid ?? 0;
+  const outstanding =
+    bill.paymentRecord?.outstanding ??
+    bill.payment?.outstanding ??
+    Math.max(0, Number(bill.netTotal) - totalPaid);
+  const payments = bill.paymentHistory ?? [];
   const showRecord =
-    (bill.status === "SUBMITTED" || bill.status === "PAID") && outstanding > 0;
+    (bill.status === "SUBMITTED" ||
+      (bill.status === "PAID" && outstanding > 0)) &&
+    outstanding > 0;
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -53,7 +61,7 @@ export function BillPaymentCard({
             Amount Due
           </p>
           <p className="mt-1 text-xl font-bold">
-            {formatCurrency(bill.netTotal)}
+            {formatCurrency(Number(bill.netTotal))}
           </p>
         </div>
         <div className="rounded-lg border border-slate-200 border-l-4 border-l-emerald-500 bg-white px-4 py-3">
@@ -61,7 +69,7 @@ export function BillPaymentCard({
             Received
           </p>
           <p className="mt-1 text-xl font-bold">
-            {formatCurrency(bill.amountReceived)}
+            {formatCurrency(totalPaid)}
           </p>
         </div>
         <div className="rounded-lg border border-slate-200 border-l-4 border-l-slate-400 bg-white px-4 py-3">
@@ -92,25 +100,25 @@ export function BillPaymentCard({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {bill.payments.length === 0 ? (
+            {payments.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-muted-foreground">
                   No payments recorded yet.
                 </TableCell>
               </TableRow>
             ) : (
-              bill.payments.map((payment) => (
+              payments.map((payment) => (
                 <TableRow key={payment.id}>
                   <TableCell>
                     {format(new Date(payment.date), "dd MMM yyyy")}
                   </TableCell>
-                  <TableCell>{payment.method}</TableCell>
+                  <TableCell>{payment.paymentMode}</TableCell>
                   <TableCell className="font-semibold">
                     {formatCurrency(payment.amount)}
                   </TableCell>
                   <TableCell>
                     <span className="rounded bg-slate-100 px-2 py-0.5 text-xs">
-                      {payment.referenceNo}
+                      {payment.referenceNo ?? "—"}
                     </span>
                   </TableCell>
                   <TableCell>{payment.processedBy}</TableCell>

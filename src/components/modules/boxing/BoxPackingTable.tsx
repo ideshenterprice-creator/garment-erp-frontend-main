@@ -1,6 +1,6 @@
 "use client";
 
-import type { MockBox } from "@/mock/boxing";
+import type { BoxPacking } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
 import { BoxStatusBadge } from "@/components/modules/boxing/BoxStatusBadge";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 
 interface BoxPackingTableProps {
-  boxes: MockBox[];
+  boxes: BoxPacking[];
   onAdd?: () => void;
 }
 
@@ -82,19 +82,21 @@ export function BoxPackingTable({ boxes, onAdd }: BoxPackingTableProps) {
                 <TableCell className="font-semibold text-slate-900">
                   {box.boxNumber}
                 </TableCell>
-                <TableCell>{box.poNumber}</TableCell>
+                <TableCell>{box.po?.poNumber ?? box.poId}</TableCell>
                 <TableCell>{box.designNumber}</TableCell>
                 <TableCell>{box.color}</TableCell>
-                <TableCell>{box.sizes.qty_0_3M}</TableCell>
-                <TableCell>{box.sizes.qty_3_6M}</TableCell>
-                <TableCell>{box.sizes.qty_6_9M}</TableCell>
-                <TableCell>{box.sizes.qty_9_12M}</TableCell>
-                <TableCell>{box.sizes.qty_12_18M}</TableCell>
-                <TableCell>{box.sizes.qty_18_24M}</TableCell>
+                <TableCell>{box.qty_0_3M}</TableCell>
+                <TableCell>{box.qty_3_6M}</TableCell>
+                <TableCell>{box.qty_6_9M}</TableCell>
+                <TableCell>{box.qty_9_12M}</TableCell>
+                <TableCell>{box.qty_12_18M}</TableCell>
+                <TableCell>{box.qty_18_24M}</TableCell>
                 <TableCell className="font-semibold">
                   {box.totalPieces} pcs
                 </TableCell>
-                <TableCell>{box.containerNumber ?? "—"}</TableCell>
+                <TableCell>
+                  {box.container?.containerNumber ?? "—"}
+                </TableCell>
                 <TableCell>
                   <BoxStatusBadge status={box.status} />
                 </TableCell>

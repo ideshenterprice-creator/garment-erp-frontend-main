@@ -2,7 +2,7 @@
 
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
-import type { MockSalesBill } from "@/mock/sales";
+import type { SalesBill } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SalesBillStatusBadge } from "@/components/modules/sales/SalesBillStatusBadge";
 import { Button } from "@/components/ui/button";
@@ -18,10 +18,10 @@ import { ROUTES } from "@/constants/routes";
 import { formatCurrency } from "@/lib/utils";
 
 interface SalesBillsTableProps {
-  bills: MockSalesBill[];
+  bills: SalesBill[];
   onAdd?: () => void;
-  onSubmit?: (bill: MockSalesBill) => void;
-  onRecordPayment?: (bill: MockSalesBill) => void;
+  onSubmit?: (bill: SalesBill) => void;
+  onRecordPayment?: (bill: SalesBill) => void;
 }
 
 export function SalesBillsTable({
@@ -50,7 +50,10 @@ export function SalesBillsTable({
           <TableHeader>
             <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Invoice ID
+                Invoice
+              </TableHead>
+              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                PO
               </TableHead>
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Buyer
@@ -59,7 +62,16 @@ export function SalesBillsTable({
                 Date
               </TableHead>
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Amount
+                Pieces
+              </TableHead>
+              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Subtotal
+              </TableHead>
+              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                GST
+              </TableHead>
+              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Net Total
               </TableHead>
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Status
@@ -71,62 +83,63 @@ export function SalesBillsTable({
           </TableHeader>
           <TableBody>
             {bills.map((bill) => {
-              const hasOutstanding = bill.amountReceived < bill.netTotal;
-              const canRecordPayment =
-                (bill.status === "SUBMITTED" || bill.status === "PAID") &&
-                hasOutstanding;
+              const totalPieces =
+                bill.totalPieces ??
+                (bill.items ?? []).reduce(
+                  (sum, item) => sum + Number(item.quantity ?? 0),
+                  0
+                );
 
               return (
-                <TableRow
-                  key={bill.id}
-                  className="cursor-pointer"
-                  onClick={() =>
-                    router.push(ROUTES.SALES.BILL_DETAIL(bill.id))
-                  }
-                >
+                <TableRow key={bill.id}>
                   <TableCell className="font-semibold text-slate-900">
                     {bill.invoiceNumber}
                   </TableCell>
-                  <TableCell>{bill.buyer.name}</TableCell>
+                  <TableCell>{bill.po?.poNumber ?? bill.poId}</TableCell>
+                  <TableCell>{bill.buyer?.name ?? "—"}</TableCell>
                   <TableCell>
                     {format(new Date(bill.invoiceDate), "dd MMM yyyy")}
                   </TableCell>
+                  <TableCell>{totalPieces.toLocaleString("en-IN")}</TableCell>
+                  <TableCell>{formatCurrency(Number(bill.subTotal))}</TableCell>
+                  <TableCell>{formatCurrency(Number(bill.gstAmount))}</TableCell>
                   <TableCell className="font-semibold">
-                    {formatCurrency(bill.netTotal)}
+                    {formatCurrency(Number(bill.netTotal))}
                   </TableCell>
                   <TableCell>
                     <SalesBillStatusBadge status={bill.status} />
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="h-auto p-0"
+                        onClick={() =>
+                          router.push(ROUTES.SALES.BILL_DETAIL(bill.id))
+                        }
+                      >
+                        View
+                      </Button>
                       {bill.status === "DRAFT" ? (
                         <Button
                           type="button"
                           variant="link"
                           className="h-auto p-0 text-teal-700"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onSubmit?.(bill);
-                          }}
+                          onClick={() => onSubmit?.(bill)}
                         >
                           Submit
                         </Button>
                       ) : null}
-                      {canRecordPayment ? (
+                      {bill.status === "SUBMITTED" ? (
                         <Button
                           type="button"
                           variant="link"
                           className="h-auto p-0 text-amber-800"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onRecordPayment?.(bill);
-                          }}
+                          onClick={() => onRecordPayment?.(bill)}
                         >
                           Record Payment
                         </Button>
-                      ) : null}
-                      {bill.status !== "DRAFT" && !canRecordPayment ? (
-                        <span className="text-xs text-muted-foreground">—</span>
                       ) : null}
                     </div>
                   </TableCell>

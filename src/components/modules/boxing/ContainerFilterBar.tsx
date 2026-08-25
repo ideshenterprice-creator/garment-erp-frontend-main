@@ -1,9 +1,8 @@
 "use client";
 
 import { Filter } from "lucide-react";
-import type { BoxFilters, BoxStatus, PurchaseOrder } from "@/types";
+import type { ContainerFilters, ContainerStatus, PurchaseOrder } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -13,31 +12,32 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export type { BoxFilters };
+export type { ContainerFilters };
 
-interface BoxFilterBarProps {
-  filters: BoxFilters;
+interface ContainerFilterBarProps {
+  filters: ContainerFilters;
   purchaseOrders: PurchaseOrder[];
-  onChange: (filters: BoxFilters) => void;
+  onChange: (filters: ContainerFilters) => void;
   onApply: () => void;
 }
 
-const statusOptions: Array<"ALL" | BoxStatus> = [
+const statusOptions: Array<"ALL" | ContainerStatus> = [
   "ALL",
-  "LOADED",
-  "PACKED",
+  "LOADING",
+  "READY",
+  "DISPATCHED",
   "PENDING",
 ];
 
-export function BoxFilterBar({
+export function ContainerFilterBar({
   filters,
   purchaseOrders,
   onChange,
   onApply,
-}: BoxFilterBarProps) {
+}: ContainerFilterBarProps) {
   return (
     <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5 xl:items-end">
+      <div className="grid gap-3 md:grid-cols-3 md:items-end">
         <div className="flex flex-col gap-2">
           <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
             Purchase Order
@@ -69,7 +69,7 @@ export function BoxFilterBar({
             onValueChange={(value) =>
               onChange({
                 ...filters,
-                status: value as BoxFilters["status"],
+                status: value as ContainerFilters["status"],
               })
             }
           >
@@ -84,32 +84,6 @@ export function BoxFilterBar({
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            From
-          </Label>
-          <Input
-            type="date"
-            value={filters.from}
-            onChange={(event) =>
-              onChange({ ...filters, from: event.target.value })
-            }
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            To
-          </Label>
-          <Input
-            type="date"
-            value={filters.to}
-            onChange={(event) =>
-              onChange({ ...filters, to: event.target.value })
-            }
-          />
         </div>
 
         <Button

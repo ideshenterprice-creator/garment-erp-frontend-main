@@ -1,11 +1,21 @@
 import api from "@/lib/axios";
 import type { ApiResponse, PaginatedResponse } from "@/types/api";
+import type {
+  AddBoxToContainerPayload,
+  BoxPacking,
+  BoxesListResponse,
+  Container,
+  ContainerDetail,
+  CreateBoxPayload,
+  CreateContainerPayload,
+  MarkDispatchedPayload,
+} from "@/types";
 import type { ListParams } from "@/services/masters.service";
 
 export async function getBoxes(
   params?: ListParams
-): Promise<ApiResponse<PaginatedResponse<unknown>>> {
-  const response = await api.get<ApiResponse<PaginatedResponse<unknown>>>(
+): Promise<ApiResponse<BoxesListResponse>> {
+  const response = await api.get<ApiResponse<BoxesListResponse>>(
     "/boxing/boxes",
     { params }
   );
@@ -13,9 +23,9 @@ export async function getBoxes(
 }
 
 export async function createBox(
-  data: Record<string, unknown>
-): Promise<ApiResponse<unknown>> {
-  const response = await api.post<ApiResponse<unknown>>(
+  data: CreateBoxPayload
+): Promise<ApiResponse<BoxPacking>> {
+  const response = await api.post<ApiResponse<BoxPacking>>(
     "/boxing/boxes",
     data
   );
@@ -24,8 +34,8 @@ export async function createBox(
 
 export async function getContainers(
   params?: ListParams
-): Promise<ApiResponse<PaginatedResponse<unknown>>> {
-  const response = await api.get<ApiResponse<PaginatedResponse<unknown>>>(
+): Promise<ApiResponse<PaginatedResponse<Container>>> {
+  const response = await api.get<ApiResponse<PaginatedResponse<Container>>>(
     "/boxing/containers",
     { params }
   );
@@ -34,17 +44,17 @@ export async function getContainers(
 
 export async function getContainerById(
   id: string
-): Promise<ApiResponse<unknown>> {
-  const response = await api.get<ApiResponse<unknown>>(
+): Promise<ApiResponse<ContainerDetail>> {
+  const response = await api.get<ApiResponse<ContainerDetail>>(
     `/boxing/containers/${id}`
   );
   return response.data;
 }
 
 export async function createContainer(
-  data: Record<string, unknown>
-): Promise<ApiResponse<unknown>> {
-  const response = await api.post<ApiResponse<unknown>>(
+  data: CreateContainerPayload
+): Promise<ApiResponse<Container>> {
+  const response = await api.post<ApiResponse<Container>>(
     "/boxing/containers",
     data
   );
@@ -53,19 +63,19 @@ export async function createContainer(
 
 export async function addBoxToContainer(
   containerId: string,
-  boxId: string
-): Promise<ApiResponse<unknown>> {
-  const response = await api.patch<ApiResponse<unknown>>(
+  data: AddBoxToContainerPayload
+): Promise<ApiResponse<ContainerDetail>> {
+  const response = await api.patch<ApiResponse<ContainerDetail>>(
     `/boxing/containers/${containerId}/add-box`,
-    { boxId }
+    data
   );
   return response.data;
 }
 
 export async function markContainerReady(
   id: string
-): Promise<ApiResponse<unknown>> {
-  const response = await api.patch<ApiResponse<unknown>>(
+): Promise<ApiResponse<Container>> {
+  const response = await api.patch<ApiResponse<Container>>(
     `/boxing/containers/${id}/mark-ready`
   );
   return response.data;
@@ -73,11 +83,11 @@ export async function markContainerReady(
 
 export async function markContainerDispatched(
   id: string,
-  date: string
-): Promise<ApiResponse<unknown>> {
-  const response = await api.patch<ApiResponse<unknown>>(
+  data: MarkDispatchedPayload
+): Promise<ApiResponse<Container>> {
+  const response = await api.patch<ApiResponse<Container>>(
     `/boxing/containers/${id}/mark-dispatched`,
-    { date }
+    data
   );
   return response.data;
 }

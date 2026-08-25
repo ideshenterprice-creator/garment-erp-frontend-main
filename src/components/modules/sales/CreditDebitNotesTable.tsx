@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { format } from "date-fns";
-import type { MockCreditDebitNote, NoteType } from "@/mock/sales";
+import type { SalesNote, SalesNoteType } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
   Table,
@@ -22,7 +22,7 @@ import { ROUTES } from "@/constants/routes";
 import { cn, formatCurrency } from "@/lib/utils";
 
 interface CreditDebitNotesTableProps {
-  notes: MockCreditDebitNote[];
+  notes: SalesNote[];
   onAdd?: () => void;
 }
 
@@ -85,15 +85,15 @@ export function CreditDebitNotesTable({
                       href={ROUTES.SALES.BILL_DETAIL(note.salesBillId)}
                       className="font-medium text-[#1b3a3a] hover:underline"
                     >
-                      {note.invoiceNumber}
+                      {note.salesBill?.invoiceNumber ?? note.salesBillId}
                     </Link>
                   </TableCell>
-                  <TableCell>{note.buyerName}</TableCell>
+                  <TableCell>{note.buyer?.name ?? "—"}</TableCell>
                   <TableCell>
                     {format(new Date(note.date), "dd MMM yyyy")}
                   </TableCell>
                   <TableCell className="font-semibold">
-                    {formatCurrency(note.amount)}
+                    {formatCurrency(Number(note.amount))}
                   </TableCell>
                   <TableCell className="max-w-md">
                     <Tooltip>
@@ -120,7 +120,7 @@ export function CreditDebitNotesTable({
   );
 }
 
-function NoteTypeBadge({ type }: { type: NoteType }) {
+function NoteTypeBadge({ type }: { type: SalesNoteType }) {
   return (
     <span
       className={cn(

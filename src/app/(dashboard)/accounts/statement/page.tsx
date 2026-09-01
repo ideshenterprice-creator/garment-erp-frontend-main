@@ -17,7 +17,8 @@ import { AccountStatementTable } from "@/components/modules/accounts/AccountStat
 import { Button } from "@/components/ui/button";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { toIsoDate, todayInputValue } from "@/lib/accounts";
-import { getAccountStatement } from "@/services/accounts.service";
+import { getAccountStatement, exportAccountStatement } from "@/services/accounts.service";
+import { getErrorMessage } from "@/lib/errorHandler";
 
 function yearStartInputValue(): string {
   return `${new Date().getUTCFullYear()}-01-01`;
@@ -158,6 +159,13 @@ function AccountStatementContent() {
             partyName={statement.party.name}
             closingBalance={statement.closingBalance}
             balanceType={statement.balanceType}
+            onExport={() => {
+              void exportAccountStatement(statementParams)
+                .then(() => toast.success("Statement exported."))
+                .catch((error) =>
+                  toast.error(getErrorMessage(error, "Export failed."))
+                );
+            }}
           />
         </>
       )}

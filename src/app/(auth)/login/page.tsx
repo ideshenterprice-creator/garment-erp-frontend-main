@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -15,6 +15,7 @@ import { useAuthStore } from "@/store/authStore";
 import { ROUTES } from "@/constants/routes";
 import { login } from "@/services/auth.service";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { getApiBaseUrl } from "@/lib/apiBase";
 
 const loginSchema = z.object({
   email: z.string().min(1, "Email is required").email("Enter a valid email address"),
@@ -23,8 +24,16 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-export default function LoginPage() {
+function safeRedirect(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return ROUTES.MASTERS.PARTY;
+  }
+  return value;
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,6 +51,11 @@ export default function LoginPage() {
   });
 
   async function onSubmit(values: LoginFormValues) {
+    if (!getApiBaseUrl()) {
+      toast.error("This app is not connected to the backend API. Set NEXT_PUBLIC_API_URL.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -59,7 +73,7 @@ export default function LoginPage() {
       );
 
       toast.success(`Welcome back, ${user.name}!`);
-      router.push(ROUTES.MASTERS.PARTY);
+      router.push(safeRedirect(searchParams.get("redirect")));
     } catch (error) {
       toast.error(
         getApiErrorMessage(error, "Invalid email or password")
@@ -161,5 +175,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+      <LoginForm />
+    </Suspense>
   );
 }

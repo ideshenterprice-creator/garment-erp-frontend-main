@@ -2,7 +2,7 @@
 
 import { format } from "date-fns";
 import type { TeamMember } from "@/services/team.service";
-import { getMemberInitials } from "@/mock/team";
+import { getMemberInitials } from "@/lib/utils";
 import { EmptyState } from "@/components/common/EmptyState";
 import { InviteStatusBadge } from "@/components/modules/team/InviteStatusBadge";
 import { MemberRoleBadge } from "@/components/modules/team/MemberRoleBadge";

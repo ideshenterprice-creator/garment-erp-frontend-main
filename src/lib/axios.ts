@@ -5,6 +5,7 @@ import axios, {
 } from "axios";
 import { useAuthStore } from "@/store/authStore";
 import { ROUTES } from "@/constants/routes";
+import { getApiBaseUrl, isLikelyJwt } from "@/lib/apiBase";
 
 interface RefreshResponse {
   success: boolean;
@@ -14,16 +15,17 @@ interface RefreshResponse {
 }
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: getApiBaseUrl() || undefined,
   headers: {
     "Content-Type": "application/json",
   },
   withCredentials: true,
+  timeout: 30_000,
 });
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const accessToken = useAuthStore.getState().accessToken;
-  if (accessToken) {
+  if (isLikelyJwt(accessToken)) {
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
   return config;
@@ -96,7 +98,7 @@ api.interceptors.response.use(
 
     try {
       const refreshResponse = await axios.post<RefreshResponse>(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
+        `${getApiBaseUrl()}/auth/refresh`,
         {},
         { withCredentials: true }
       );

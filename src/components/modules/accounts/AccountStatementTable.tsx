@@ -2,7 +2,6 @@
 
 import { Download, Info } from "lucide-react";
 import { format } from "date-fns";
-import { toast } from "sonner";
 import type { AccountStatementTransaction } from "@/types";
 import { BalanceDisplay } from "@/components/modules/accounts/BalanceDisplay";
 import { Button } from "@/components/ui/button";
@@ -21,6 +20,8 @@ interface AccountStatementTableProps {
   partyName: string;
   closingBalance: number;
   balanceType: "RECEIVABLE" | "PAYABLE";
+  onExport?: () => void;
+  exporting?: boolean;
 }
 
 export function AccountStatementTable({
@@ -28,6 +29,8 @@ export function AccountStatementTable({
   partyName,
   closingBalance,
   balanceType,
+  onExport,
+  exporting,
 }: AccountStatementTableProps) {
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -43,7 +46,8 @@ export function AccountStatementTable({
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => toast.message("Export coming soon.")}
+            disabled={exporting}
+            onClick={() => onExport?.()}
           >
             <Download className="size-4" />
             Export

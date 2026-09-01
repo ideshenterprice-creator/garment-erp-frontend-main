@@ -16,7 +16,8 @@ import { RegisterTable } from "@/components/modules/purchase/RegisterTable";
 import { Button } from "@/components/ui/button";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { getParties, getProducts } from "@/services/masters.service";
-import { getPurchaseRegister } from "@/services/purchase.service";
+import { getPurchaseRegister, exportPurchaseRegister } from "@/services/purchase.service";
+import { getErrorMessage } from "@/lib/errorHandler";
 
 function defaultRegisterFilters(): RegisterFilters {
   const today = new Date();
@@ -85,9 +86,13 @@ export function PurchaseRegister() {
           <PageHeaderAction
             label="Export"
             icon={<Download className="size-4" />}
-            onClick={() =>
-              toast.message("Export feature will be available soon.")
-            }
+            onClick={() => {
+              void exportPurchaseRegister(registerParams)
+                .then(() => toast.success("Purchase register exported."))
+                .catch((error) =>
+                  toast.error(getErrorMessage(error, "Export failed."))
+                );
+            }}
           />
         }
       />

@@ -60,7 +60,8 @@ export default function ContainersPage() {
           },
         };
       }
-      const { pendingOnly: _pendingOnly, ...params } = queryFilters;
+      const { pendingOnly, ...params } = queryFilters;
+      void pendingOnly;
       return getContainers(params);
     },
   });

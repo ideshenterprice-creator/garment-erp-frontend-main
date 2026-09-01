@@ -81,6 +81,18 @@ export async function getSalesRegister(
   return response.data;
 }
 
+export async function exportSalesRegister(
+  params?: ListParams
+): Promise<void> {
+  const { downloadFromApi } = await import("@/lib/download");
+  await downloadFromApi("/sales/register/export", "sales-register.csv", params);
+}
+
+export async function downloadSalesBillPdf(id: string, invoiceNumber: string): Promise<void> {
+  const { downloadFromApi } = await import("@/lib/download");
+  await downloadFromApi(`/sales/bills/${id}/pdf`, `${invoiceNumber}.pdf`);
+}
+
 export async function getNotes(
   params?: ListParams
 ): Promise<ApiResponse<PaginatedResponse<SalesNote>>> {

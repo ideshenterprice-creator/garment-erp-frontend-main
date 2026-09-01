@@ -83,3 +83,10 @@ export async function getAccountStatement(
   );
   return response.data;
 }
+
+export async function exportAccountStatement(
+  params?: ListParams
+): Promise<void> {
+  const { downloadFromApi } = await import("@/lib/download");
+  await downloadFromApi("/accounts/statement/export", "account-statement.csv", params);
+}

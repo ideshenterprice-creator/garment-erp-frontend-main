@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { getMe, refreshToken } from "@/services/auth.service";
 import { ROUTES } from "@/constants/routes";
+import { isLikelyJwt } from "@/lib/apiBase";
 
 interface UseAuthResult {
   isLoading: boolean;
@@ -19,7 +20,7 @@ export function useAuth(): UseAuthResult {
   const logout = useAuthStore((state) => state.logout);
   const [isLoading, setIsLoading] = useState(() => {
     const state = useAuthStore.getState();
-    return !(state.user && state.accessToken);
+    return !(state.user && isLikelyJwt(state.accessToken));
   });
 
   useEffect(() => {
@@ -27,7 +28,7 @@ export function useAuth(): UseAuthResult {
 
     async function restoreSession() {
       const state = useAuthStore.getState();
-      if (state.user && state.accessToken) {
+      if (state.user && isLikelyJwt(state.accessToken)) {
         setIsLoading(false);
         return;
       }
@@ -76,6 +77,6 @@ export function useAuth(): UseAuthResult {
 
   return {
     isLoading,
-    isAuthenticated: Boolean(user && accessToken),
+    isAuthenticated: Boolean(user && isLikelyJwt(accessToken)),
   };
 }

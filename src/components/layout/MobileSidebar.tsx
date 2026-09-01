@@ -6,6 +6,7 @@ import { useState } from "react";
 import { LogOut, Menu, X } from "lucide-react";
 import { sidebarConfig } from "@/constants/sidebarConfig";
 import { ROUTES } from "@/constants/routes";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { useAuthStore } from "@/store/authStore";
 import { logout } from "@/services/auth.service";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,7 @@ import { cn } from "@/lib/utils";
 export function MobileSidebar() {
   const [open, setOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
@@ -114,7 +116,7 @@ export function MobileSidebar() {
             </div>
             <button
               type="button"
-              onClick={() => void handleLogout()}
+              onClick={() => setLogoutConfirmOpen(true)}
               disabled={isLoggingOut}
               aria-label="Logout"
               aria-busy={isLoggingOut}
@@ -129,6 +131,21 @@ export function MobileSidebar() {
           </div>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={logoutConfirmOpen}
+        onClose={() => {
+          if (!isLoggingOut) setLogoutConfirmOpen(false);
+        }}
+        title="Log out?"
+        description="You will be signed out of FabricFlow ERP and returned to the login page."
+        confirmLabel="Log Out"
+        cancelLabel="Stay Signed In"
+        onConfirm={() => {
+          setLogoutConfirmOpen(false);
+          void handleLogout();
+        }}
+      />
     </div>
   );
 }

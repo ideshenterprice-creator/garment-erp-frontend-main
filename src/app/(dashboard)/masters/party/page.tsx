@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getErrorMessage } from "@/lib/errorHandler";
-import { getParties, togglePartyStatus } from "@/services/masters.service";
+import { getParties, togglePartyStatus, deleteParty } from "@/services/masters.service";
 
 type PartyFilter = "ALL" | "BUYER" | "SUPPLIER" | "KARIGAR";
 
@@ -35,6 +35,7 @@ export default function PartyMasterPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingParty, setEditingParty] = useState<Party | null>(null);
   const [statusTarget, setStatusTarget] = useState<Party | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Party | null>(null);
 
   const filters = {
     type: filter === "ALL" ? undefined : filter,
@@ -79,6 +80,18 @@ export default function PartyMasterPage() {
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Failed to update party status."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteParty(id),
+    onSuccess: () => {
+      toast.success("Party deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete party."));
     },
   });
 
@@ -178,6 +191,7 @@ export default function PartyMasterPage() {
               setDrawerOpen(true);
             }}
             onToggleStatus={setStatusTarget}
+            onDelete={setDeleteTarget}
             onAdd={() => {
               setEditingParty(null);
               setDrawerOpen(true);
@@ -240,12 +254,27 @@ export default function PartyMasterPage() {
             : "This party will become available for new transactions."
         }
         confirmLabel={statusTarget?.isActive ? "Deactivate" : "Activate"}
+        variant="default"
         onConfirm={() => {
           if (!statusTarget) return;
           toggleStatusMutation.mutate({
             id: statusTarget.id,
             isActive: !statusTarget.isActive,
           });
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        title={`Delete ${deleteTarget?.name ?? "party"} permanently?`}
+        description="This action cannot be undone. The party will be removed completely from the system. Parties linked to existing transactions cannot be deleted."
+        confirmLabel="Delete Permanently"
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id);
         }}
       />
     </div>

@@ -108,6 +108,8 @@ export function ProductDrawer({ open, onClose, product }: ProductDrawerProps) {
     onSuccess: () => {
       toast.success("Product added successfully.");
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRODUCTS });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.NOTIFICATIONS });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STOCK });
       onClose();
       reset(defaultValues);
     },

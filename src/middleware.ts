@@ -17,6 +17,7 @@ const protectedPrefixes = [
   "/sales",
   "/accounts",
   ROUTES.TEAM.ROOT,
+  ROUTES.NOTIFICATIONS,
 ];
 
 function isPublicPath(pathname: string): boolean {

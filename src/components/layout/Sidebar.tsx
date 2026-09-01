@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { sidebarConfig } from "@/constants/sidebarConfig";
 import { ROUTES } from "@/constants/routes";
+import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { useAuthStore } from "@/store/authStore";
 import { logout } from "@/services/auth.service";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,7 @@ export function Sidebar() {
   const user = useAuthStore((state) => state.user);
   const clearAuth = useAuthStore((state) => state.logout);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     Masters: true,
   });
@@ -187,7 +189,7 @@ export function Sidebar() {
           </div>
           <button
             type="button"
-            onClick={() => void handleLogout()}
+            onClick={() => setLogoutConfirmOpen(true)}
             disabled={isLoggingOut}
             className="rounded-md p-1.5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-50"
             aria-label="Logout"
@@ -197,6 +199,21 @@ export function Sidebar() {
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={logoutConfirmOpen}
+        onClose={() => {
+          if (!isLoggingOut) setLogoutConfirmOpen(false);
+        }}
+        title="Log out?"
+        description="You will be signed out of FabricFlow ERP and returned to the login page."
+        confirmLabel="Log Out"
+        cancelLabel="Stay Signed In"
+        onConfirm={() => {
+          setLogoutConfirmOpen(false);
+          void handleLogout();
+        }}
+      />
     </aside>
   );
 }

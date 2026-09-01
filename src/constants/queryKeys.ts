@@ -20,4 +20,6 @@ export const QUERY_KEYS = {
   VOUCHERS: ["vouchers"] as const,
   ACCOUNT_STATEMENT: ["account-statement"] as const,
   TEAM_MEMBERS: ["team-members"] as const,
+  NOTIFICATIONS: ["notifications"] as const,
+  SEARCH: ["search"] as const,
 } as const;

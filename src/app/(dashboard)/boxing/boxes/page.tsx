@@ -67,7 +67,8 @@ export default function BoxPackingPage() {
           },
         };
       }
-      const { pendingOnly: _pendingOnly, ...params } = queryFilters;
+      const { pendingOnly, ...params } = queryFilters;
+      void pendingOnly;
       return getBoxes(params);
     },
   });

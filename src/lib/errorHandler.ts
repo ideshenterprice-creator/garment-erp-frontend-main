@@ -6,13 +6,18 @@ export function getErrorMessage(
     const axiosError = error as {
       response?: {
         data?: {
+          message?: string;
           error?: {
             message?: string;
           };
         };
       };
     };
-    return axiosError.response?.data?.error?.message || fallback;
+    return (
+      axiosError.response?.data?.error?.message ||
+      axiosError.response?.data?.message ||
+      fallback
+    );
   }
   if (error instanceof Error && error.message) {
     return error.message;

@@ -69,6 +69,7 @@ function toPayload(values: PartyFormValues): CreatePartyPayload {
     bankAccount: values.bankAccount || undefined,
     ifsc: values.ifsc || undefined,
     bankName: values.bankName || undefined,
+    isActive: values.isActive,
   };
 }
 
@@ -117,6 +118,8 @@ export function PartyDrawer({ open, onClose, party }: PartyDrawerProps) {
     onSuccess: () => {
       toast.success("Party added successfully.");
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.NOTIFICATIONS });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SEARCH });
       onClose();
       reset(defaultValues);
     },
@@ -136,6 +139,7 @@ export function PartyDrawer({ open, onClose, party }: PartyDrawerProps) {
     onSuccess: () => {
       toast.success("Party updated.");
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SEARCH });
       if (party?.id) {
         void queryClient.invalidateQueries({
           queryKey: [...QUERY_KEYS.PARTIES, party.id],

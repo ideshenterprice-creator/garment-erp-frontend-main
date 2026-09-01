@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, Pencil } from "lucide-react";
+import { Ban, Pencil, Trash2 } from "lucide-react";
 import type { Party } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -19,6 +19,7 @@ interface PartyTableProps {
   onRowClick: (party: Party) => void;
   onEdit: (party: Party) => void;
   onToggleStatus: (party: Party) => void;
+  onDelete: (party: Party) => void;
   onAdd?: () => void;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -44,6 +45,7 @@ export function PartyTable({
   onRowClick,
   onEdit,
   onToggleStatus,
+  onDelete,
   onAdd,
   emptyTitle = "No parties found",
   emptyDescription = "Try changing filters or add a new party.",
@@ -160,6 +162,19 @@ export function PartyTable({
                       }}
                     >
                       <Ban className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-red-500 hover:bg-red-50 hover:text-red-600"
+                      title="Delete permanently"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete(party);
+                      }}
+                    >
+                      <Trash2 className="size-4" />
                     </Button>
                   </div>
                 </TableCell>

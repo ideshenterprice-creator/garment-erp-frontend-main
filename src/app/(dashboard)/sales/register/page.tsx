@@ -16,7 +16,8 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { currentMonthRange, toIsoDate } from "@/lib/sales";
 import { getParties } from "@/services/masters.service";
 import { getPurchaseOrders } from "@/services/purchaseOrders.service";
-import { getSalesRegister } from "@/services/sales.service";
+import { getSalesRegister, exportSalesRegister } from "@/services/sales.service";
+import { getErrorMessage } from "@/lib/errorHandler";
 
 const month = currentMonthRange();
 
@@ -76,7 +77,15 @@ export default function SalesRegisterPage() {
         purchaseOrders={posQuery.data?.data.data ?? []}
         onChange={setDraftFilters}
         onApply={() => setApplied(draftFilters)}
-        onExport={() => toast.message("Export coming soon.")}
+        onExport={() => {
+          if (!applied.fromDate || !applied.toDate) {
+            toast.error("Select a date range first.");
+            return;
+          }
+          void exportSalesRegister(queryFilters)
+            .then(() => toast.success("Sales register exported."))
+            .catch((error) => toast.error(getErrorMessage(error, "Export failed.")));
+        }}
       />
 
       {registerQuery.isLoading ? (

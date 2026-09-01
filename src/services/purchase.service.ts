@@ -70,3 +70,10 @@ export async function getPurchaseRegister(
   );
   return response.data;
 }
+
+export async function exportPurchaseRegister(
+  params?: ListParams
+): Promise<void> {
+  const { downloadFromApi } = await import("@/lib/download");
+  await downloadFromApi("/purchase/register/export", "purchase-register.csv", params);
+}

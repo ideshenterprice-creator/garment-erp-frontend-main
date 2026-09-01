@@ -64,6 +64,15 @@ export async function togglePartyStatus(
   return response.data;
 }
 
+export async function deleteParty(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/masters/parties/${id}`
+  );
+  return response.data;
+}
+
 export async function getProducts(
   params?: ListParams
 ): Promise<ApiResponse<PaginatedResponse<Product>>> {

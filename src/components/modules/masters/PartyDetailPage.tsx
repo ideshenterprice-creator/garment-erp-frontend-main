@@ -10,6 +10,7 @@ import {
   Clock3,
   Info,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { toast } from "sonner";
@@ -31,7 +32,7 @@ import { ROUTES } from "@/constants/routes";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { formatCurrency } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/errorHandler";
-import { togglePartyStatus } from "@/services/masters.service";
+import { togglePartyStatus, deleteParty } from "@/services/masters.service";
 import { getAccountStatement } from "@/services/accounts.service";
 
 interface PartyDetailPageProps {
@@ -45,6 +46,7 @@ export function PartyDetailPage({ party }: PartyDetailPageProps) {
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const from = format(subDays(new Date(), 90), "yyyy-MM-dd");
   const to = format(new Date(), "yyyy-MM-dd");
@@ -76,6 +78,18 @@ export function PartyDetailPage({ party }: PartyDetailPageProps) {
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Failed to update party status."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteParty(id),
+    onSuccess: () => {
+      toast.success("Party deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
+      router.push(ROUTES.MASTERS.PARTY);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete party."));
     },
   });
 
@@ -136,6 +150,16 @@ export function PartyDetailPage({ party }: PartyDetailPageProps) {
           >
             <Ban className="size-4" />
             {party.isActive ? "Deactivate" : "Activate"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            onClick={() => setDeleteOpen(true)}
+            disabled={deleteMutation.isPending}
+          >
+            <Trash2 className="size-4" />
+            Delete Party
           </Button>
         </div>
       </div>
@@ -320,11 +344,25 @@ export function PartyDetailPage({ party }: PartyDetailPageProps) {
             : "This party will become available for new transactions."
         }
         confirmLabel={party.isActive ? "Deactivate" : "Activate"}
+        variant="default"
         onConfirm={() => {
           toggleStatusMutation.mutate({
             id: party.id,
             isActive: !party.isActive,
           });
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteOpen(false);
+        }}
+        title={`Delete ${party.name} permanently?`}
+        description="This action cannot be undone. The party will be removed completely from the system. Parties linked to existing transactions cannot be deleted."
+        confirmLabel="Delete Permanently"
+        onConfirm={() => {
+          deleteMutation.mutate(party.id);
         }}
       />
     </div>

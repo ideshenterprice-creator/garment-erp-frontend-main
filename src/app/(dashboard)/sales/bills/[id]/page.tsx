@@ -36,6 +36,7 @@ import { formatCurrency } from "@/lib/utils";
 import {
   getSalesBillById,
   returnSalesBill,
+  downloadSalesBillPdf,
 } from "@/services/sales.service";
 
 export default function SalesBillDetailPage() {
@@ -126,7 +127,11 @@ export default function SalesBillDetailPage() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => toast.message("PDF download coming soon")}
+            onClick={() => {
+              void downloadSalesBillPdf(bill.id, bill.invoiceNumber)
+                .then(() => toast.success("Invoice PDF downloaded."))
+                .catch((error) => toast.error(getErrorMessage(error, "Failed to download PDF.")));
+            }}
           >
             <Download className="size-4" />
             Download PDF

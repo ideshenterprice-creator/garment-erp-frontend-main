@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { format as formatFns } from "date-fns";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -36,11 +37,18 @@ function formatCompact(value: number): string {
   });
 }
 
+export function getMemberInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((part) => part[0] ?? "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
 export function formatDate(
   date: string | Date,
   formatStr = "dd MMM yyyy"
 ): string {
-  // Placeholder helper — date-fns formatting will be used in feature work
-  void formatStr;
-  return typeof date === "string" ? date : date.toISOString();
+  return formatFns(typeof date === "string" ? new Date(date) : date, formatStr);
 }

@@ -171,6 +171,7 @@ export interface CreatePartyPayload {
   bankAccount?: string;
   ifsc?: string;
   bankName?: string;
+  isActive?: boolean;
 }
 
 export interface CreateProductPayload {

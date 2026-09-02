@@ -12,6 +12,10 @@ import { Pagination } from "@/components/common/Pagination";
 import { POStatCards } from "@/components/modules/purchase-orders/POStatCards";
 import { POTable } from "@/components/modules/purchase-orders/POTable";
 import { CancelPODialog } from "@/components/modules/purchase-orders/CancelPODialog";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ROUTES } from "@/constants/routes";
@@ -21,6 +25,7 @@ import { getErrorMessage } from "@/lib/errorHandler";
 import { cn } from "@/lib/utils";
 import {
   cancelPurchaseOrder,
+  deletePurchaseOrder,
   getPurchaseOrders,
 } from "@/services/purchaseOrders.service";
 
@@ -46,6 +51,7 @@ export default function PurchaseOrdersPage() {
   const debouncedSearch = useDebounce(search, 500);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<PurchaseOrder | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null);
 
   const filters = {
     status: filter === "ALL" ? undefined : filter,
@@ -83,6 +89,20 @@ export default function PurchaseOrdersPage() {
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Failed to cancel PO."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deletePurchaseOrder(id),
+    onSuccess: () => {
+      toast.success("Deleted permanently.");
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.PURCHASE_ORDERS,
+      });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete purchase order."));
     },
   });
 
@@ -173,6 +193,7 @@ export default function PurchaseOrdersPage() {
               setCancelTarget(order);
               setCancelOpen(true);
             }}
+            onDelete={setDeleteTarget}
             onAdd={() => router.push(ROUTES.PURCHASE_ORDERS.NEW)}
             emptyTitle={
               filtersActive
@@ -216,6 +237,21 @@ export default function PurchaseOrdersPage() {
         onConfirm={(reason) => {
           if (!cancelTarget) return;
           cancelMutation.mutate({ id: cancelTarget.id, reason });
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget ? ` ${deleteTarget.poNumber} will be deleted.` : ""
+        }`}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id);
         }}
       />
     </div>

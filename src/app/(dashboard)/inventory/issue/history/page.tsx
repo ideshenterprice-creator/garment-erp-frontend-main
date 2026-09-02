@@ -1,11 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, startOfMonth } from "date-fns";
+import { toast } from "sonner";
+import type { IssueRecord } from "@/types";
 import { PageHeader } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import {
   IssueHistoryFilterBar,
   type IssueHistoryFilters,
@@ -13,7 +19,8 @@ import {
 import { IssueHistoryTable } from "@/components/modules/inventory/IssueHistoryTable";
 import { Button } from "@/components/ui/button";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { getIssues } from "@/services/inventory.service";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { deleteIssue, getIssues } from "@/services/inventory.service";
 import { getParties } from "@/services/masters.service";
 import { getPurchaseOrders } from "@/services/purchaseOrders.service";
 
@@ -37,6 +44,8 @@ export default function IssueHistoryPage() {
   const [appliedFilters, setAppliedFilters] =
     useState<IssueHistoryFilters>(initial);
   const [page, setPage] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<IssueRecord | null>(null);
+  const queryClient = useQueryClient();
 
   const karigarsQuery = useQuery({
     queryKey: [...QUERY_KEYS.PARTIES, { type: "KARIGAR", limit: 100 }],
@@ -75,6 +84,19 @@ export default function IssueHistoryPage() {
   const total = data?.data.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteIssue(id),
+    onSuccess: () => {
+      toast.success("Deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ISSUES });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STOCK });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete issue."));
+    },
+  });
+
   return (
     <div>
       <PageHeader
@@ -108,7 +130,7 @@ export default function IssueHistoryPage() {
         </div>
       ) : (
         <>
-          <IssueHistoryTable issues={issues} />
+          <IssueHistoryTable issues={issues} onDelete={setDeleteTarget} />
           <Pagination
             page={page}
             totalPages={totalPages}
@@ -119,6 +141,21 @@ export default function IssueHistoryPage() {
           />
         </>
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget ? ` ${deleteTarget.issueNumber} will be deleted.` : ""
+        }`}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id);
+        }}
+      />
     </div>
   );
 }

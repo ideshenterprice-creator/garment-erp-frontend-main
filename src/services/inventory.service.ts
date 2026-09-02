@@ -61,6 +61,15 @@ export async function createIssue(
   return response.data;
 }
 
+export async function deleteIssue(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/inventory/issues/${id}`
+  );
+  return response.data;
+}
+
 export async function getWastage(
   params?: ListParams
 ): Promise<ApiResponse<WastageListResponse>> {
@@ -86,6 +95,15 @@ export async function markWastageSold(
 ): Promise<ApiResponse<CuttingWastage>> {
   const response = await api.patch<ApiResponse<CuttingWastage>>(
     `/inventory/wastage/${id}/mark-sold`
+  );
+  return response.data;
+}
+
+export async function deleteWastage(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/inventory/wastage/${id}`
   );
   return response.data;
 }

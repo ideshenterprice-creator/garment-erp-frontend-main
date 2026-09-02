@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import type { CuttingEntry } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import { SizeBreakdownChips } from "@/components/modules/production/SizeBreakdownChips";
 import {
   Table,
@@ -18,9 +19,10 @@ import { ROUTES } from "@/constants/routes";
 interface CuttingTableProps {
   entries: CuttingEntry[];
   onAdd?: () => void;
+  onDelete?: (entry: CuttingEntry) => void;
 }
 
-export function CuttingTable({ entries, onAdd }: CuttingTableProps) {
+export function CuttingTable({ entries, onAdd, onDelete }: CuttingTableProps) {
   const router = useRouter();
 
   if (entries.length === 0) {
@@ -50,6 +52,7 @@ export function CuttingTable({ entries, onAdd }: CuttingTableProps) {
               <TableHead>Sizes</TableHead>
               <TableHead>Wastage (kg)</TableHead>
               <TableHead>Karigar</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -98,6 +101,14 @@ export function CuttingTable({ entries, onAdd }: CuttingTableProps) {
                     {Number(entry.wastageKg).toLocaleString("en-IN")}
                   </TableCell>
                   <TableCell>{entry.karigar?.name ?? "—"}</TableCell>
+                  <TableCell>
+                    <DeleteRowButton
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete?.(entry);
+                      }}
+                    />
+                  </TableCell>
                 </TableRow>
               );
             })}

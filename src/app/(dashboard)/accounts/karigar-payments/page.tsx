@@ -8,6 +8,10 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
 import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
+import {
   KarigarPaymentFilterBar,
   type KarigarPaymentFilters,
 } from "@/components/modules/accounts/KarigarPaymentFilterBar";
@@ -23,6 +27,7 @@ import { getErrorMessage } from "@/lib/errorHandler";
 import { formatCurrency } from "@/lib/utils";
 import {
   confirmKarigarPayment,
+  deleteKarigarPayment,
   getKarigarPayments,
 } from "@/services/accounts.service";
 
@@ -46,6 +51,7 @@ export default function KarigarPaymentsPage() {
   const [receiptTarget, setReceiptTarget] = useState<KarigarPayment | null>(
     null
   );
+  const [deleteTarget, setDeleteTarget] = useState<KarigarPayment | null>(null);
 
   const weekParts =
     applied.week !== "ALL" ? applied.week.split("-") : null;
@@ -97,6 +103,20 @@ export default function KarigarPaymentsPage() {
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Failed to confirm payment."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteKarigarPayment(id),
+    onSuccess: () => {
+      toast.success("Deleted permanently.");
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.KARIGAR_PAYMENTS,
+      });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete karigar payment."));
     },
   });
 
@@ -152,6 +172,7 @@ export default function KarigarPaymentsPage() {
             payments={payments}
             onRecordPayment={setRecordTarget}
             onViewReceipt={setReceiptTarget}
+            onDelete={setDeleteTarget}
           />
           <Pagination
             page={page}
@@ -184,6 +205,21 @@ export default function KarigarPaymentsPage() {
         open={Boolean(receiptTarget)}
         payment={receiptTarget}
         onClose={() => setReceiptTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget ? ` ${deleteTarget.paymentNumber} will be deleted.` : ""
+        }`}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id);
+        }}
       />
     </div>
   );

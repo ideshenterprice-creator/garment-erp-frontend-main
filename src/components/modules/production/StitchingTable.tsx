@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import type { StitchingEntry } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import {
   Table,
   TableBody,
@@ -18,9 +19,10 @@ import { formatCurrency } from "@/lib/utils";
 interface StitchingTableProps {
   entries: StitchingEntry[];
   onAdd?: () => void;
+  onDelete?: (entry: StitchingEntry) => void;
 }
 
-export function StitchingTable({ entries, onAdd }: StitchingTableProps) {
+export function StitchingTable({ entries, onAdd, onDelete }: StitchingTableProps) {
   const router = useRouter();
 
   if (entries.length === 0) {
@@ -49,6 +51,7 @@ export function StitchingTable({ entries, onAdd }: StitchingTableProps) {
               <TableHead>Rejected</TableHead>
               <TableHead>Amount Due</TableHead>
               <TableHead>Karigar</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -89,6 +92,14 @@ export function StitchingTable({ entries, onAdd }: StitchingTableProps) {
                     {formatCurrency(amountDue)}
                   </TableCell>
                   <TableCell>{entry.karigar?.name ?? "—"}</TableCell>
+                  <TableCell>
+                    <DeleteRowButton
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete?.(entry);
+                      }}
+                    />
+                  </TableCell>
                 </TableRow>
               );
             })}

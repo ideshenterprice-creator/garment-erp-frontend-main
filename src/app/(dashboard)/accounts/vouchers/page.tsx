@@ -10,6 +10,10 @@ import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
 import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
+import {
   VoucherFilterBar,
   type VoucherFilter,
 } from "@/components/modules/accounts/VoucherFilterBar";
@@ -26,7 +30,7 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ACCOUNT_PAYMENT_MODES, toIsoDate } from "@/lib/accounts";
 import { getErrorMessage } from "@/lib/errorHandler";
 import { formatCurrency } from "@/lib/utils";
-import { createVoucher, getVouchers } from "@/services/accounts.service";
+import { createVoucher, deleteVoucher, getVouchers } from "@/services/accounts.service";
 
 const PAGE_SIZE = 10;
 
@@ -42,6 +46,7 @@ export default function VouchersPage() {
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selected, setSelected] = useState<Voucher | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Voucher | null>(null);
 
   const queryFilters = {
     type: filter === "ALL" ? undefined : filter,
@@ -68,6 +73,18 @@ export default function VouchersPage() {
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Failed to save voucher."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteVoucher(id),
+    onSuccess: () => {
+      toast.success("Deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.VOUCHERS });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete voucher."));
     },
   });
 
@@ -126,6 +143,7 @@ export default function VouchersPage() {
             vouchers={vouchers}
             onAdd={() => setDrawerOpen(true)}
             onView={setSelected}
+            onDelete={setDeleteTarget}
           />
           <Pagination
             page={page}
@@ -197,6 +215,21 @@ export default function VouchersPage() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget ? ` ${deleteTarget.voucherNumber} will be deleted.` : ""
+        }`}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id);
+        }}
+      />
     </div>
   );
 }

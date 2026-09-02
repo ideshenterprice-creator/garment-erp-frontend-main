@@ -4,9 +4,14 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
+import type { CuttingWastage } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import { RecordWastageDrawer } from "@/components/modules/inventory/RecordWastageDrawer";
 import { WastageStatCards } from "@/components/modules/inventory/WastageStatCards";
 import { WastageTable } from "@/components/modules/inventory/WastageTable";
@@ -14,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { getErrorMessage } from "@/lib/errorHandler";
 import {
+  deleteWastage,
   getWastage,
   markWastageSold,
 } from "@/services/inventory.service";
@@ -24,6 +30,7 @@ export default function CuttingWastagePage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<CuttingWastage | null>(null);
 
   const filters = { page, limit: PAGE_SIZE };
 
@@ -46,6 +53,19 @@ export default function CuttingWastagePage() {
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Failed to mark wastage as sold."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteWastage(id),
+    onSuccess: () => {
+      toast.success("Deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.WASTAGE });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STOCK });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete wastage."));
     },
   });
 
@@ -97,6 +117,7 @@ export default function CuttingWastagePage() {
               entries={entries}
               onAdd={() => setDrawerOpen(true)}
               onMarkSold={(entry) => markSoldMutation.mutate(entry.id)}
+              onDelete={setDeleteTarget}
               markingSoldId={
                 markSoldMutation.isPending
                   ? markSoldMutation.variables ?? null
@@ -123,6 +144,21 @@ export default function CuttingWastagePage() {
       <RecordWastageDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget ? ` ${deleteTarget.wastageNumber} will be deleted.` : ""
+        }`}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id);
+        }}
       />
     </div>
   );

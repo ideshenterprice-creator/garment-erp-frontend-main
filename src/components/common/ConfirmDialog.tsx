@@ -21,6 +21,14 @@ interface ConfirmDialogProps {
   variant?: "default" | "destructive";
 }
 
+export const PERMANENT_DELETE = {
+  title: "Permanently delete",
+  description:
+    "This record will be removed from the database. This cannot be undone.",
+  confirmLabel: "Yes",
+  cancelLabel: "No",
+} as const;
+
 export function ConfirmDialog({
   open,
   onClose,

@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import type { FinishingEntry } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import {
   Table,
   TableBody,
@@ -18,9 +19,10 @@ import { formatCurrency } from "@/lib/utils";
 interface FinishingTableProps {
   entries: FinishingEntry[];
   onAdd?: () => void;
+  onDelete?: (entry: FinishingEntry) => void;
 }
 
-export function FinishingTable({ entries, onAdd }: FinishingTableProps) {
+export function FinishingTable({ entries, onAdd, onDelete }: FinishingTableProps) {
   const router = useRouter();
 
   if (entries.length === 0) {
@@ -48,6 +50,7 @@ export function FinishingTable({ entries, onAdd }: FinishingTableProps) {
               <TableHead>Completed</TableHead>
               <TableHead>Amount Due</TableHead>
               <TableHead>Karigar</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -85,6 +88,14 @@ export function FinishingTable({ entries, onAdd }: FinishingTableProps) {
                     {formatCurrency(amountDue)}
                   </TableCell>
                   <TableCell>{entry.karigar?.name ?? "—"}</TableCell>
+                  <TableCell>
+                    <DeleteRowButton
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete?.(entry);
+                      }}
+                    />
+                  </TableCell>
                 </TableRow>
               );
             })}

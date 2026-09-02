@@ -9,7 +9,10 @@ import type { PurchaseBill, PurchaseBillStatus } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
-import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import { BillStatCards } from "@/components/modules/purchase/BillStatCards";
 import { BillsTable } from "@/components/modules/purchase/BillsTable";
 import { ReturnBillDialog } from "@/components/modules/purchase/ReturnBillDialog";
@@ -20,6 +23,7 @@ import { getErrorMessage } from "@/lib/errorHandler";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   confirmPurchaseBill,
+  deletePurchaseBill,
   getPurchaseBills,
   returnPurchaseBill,
 } from "@/services/purchase.service";
@@ -42,6 +46,7 @@ export default function PurchaseBillsPage() {
   const [page, setPage] = useState(1);
   const [confirmTarget, setConfirmTarget] = useState<PurchaseBill | null>(null);
   const [returnTarget, setReturnTarget] = useState<PurchaseBill | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PurchaseBill | null>(null);
 
   const filters = {
     status: filter === "ALL" ? undefined : filter,
@@ -99,6 +104,24 @@ export default function PurchaseBillsPage() {
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Failed to return bill."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deletePurchaseBill(id),
+    onSuccess: () => {
+      toast.success("Deleted permanently.");
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.PURCHASE_BILLS,
+      });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STOCK });
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.PURCHASE_ORDERS,
+      });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete purchase bill."));
     },
   });
 
@@ -162,6 +185,7 @@ export default function PurchaseBillsPage() {
             onView={(bill) => router.push(ROUTES.PURCHASE.DETAIL(bill.id))}
             onConfirm={setConfirmTarget}
             onReturn={setReturnTarget}
+            onDelete={setDeleteTarget}
             onAdd={() => router.push(ROUTES.PURCHASE.NEW)}
             emptyTitle={
               filtersActive
@@ -224,6 +248,21 @@ export default function PurchaseBillsPage() {
         onConfirm={(reason) => {
           if (!returnTarget) return;
           returnMutation.mutate({ id: returnTarget.id, reason });
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget ? ` ${deleteTarget.billNumber} will be deleted.` : ""
+        }`}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id);
         }}
       />
     </div>

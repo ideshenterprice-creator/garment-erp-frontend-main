@@ -2,12 +2,21 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Info, Package, Pencil } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Info, Package, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import type { Product } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import { ProductDrawer } from "@/components/modules/masters/ProductDrawer";
 import { Button } from "@/components/ui/button";
+import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { deleteProduct } from "@/services/masters.service";
 
 interface ProductDetailPageProps {
   product: Product;
@@ -45,7 +54,21 @@ function sizeLabel(size: string) {
 
 export function ProductDetailPage({ product }: ProductDetailPageProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteProduct(id),
+    onSuccess: () => {
+      toast.success("Product deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRODUCTS });
+      router.push(ROUTES.MASTERS.PRODUCT);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete product."));
+    },
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -75,10 +98,22 @@ export function ProductDetailPage({ product }: ProductDetailPageProps) {
             </p>
           </div>
         </div>
-        <Button type="button" variant="outline" onClick={() => setEditOpen(true)}>
-          <Pencil className="size-4" />
-          Edit Product
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={() => setEditOpen(true)}>
+            <Pencil className="size-4" />
+            Edit Product
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            onClick={() => setDeleteOpen(true)}
+            disabled={deleteMutation.isPending}
+          >
+            <Trash2 className="size-4" />
+            Delete Product
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -166,6 +201,16 @@ export function ProductDetailPage({ product }: ProductDetailPageProps) {
         open={editOpen}
         onClose={() => setEditOpen(false)}
         product={product}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteOpen(false);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description} ${product.name} will be deleted.`}
+        onConfirm={() => deleteMutation.mutate(product.id)}
       />
     </div>
   );

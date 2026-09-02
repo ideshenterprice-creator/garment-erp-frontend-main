@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { Container } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import { ContainerStatusBadge } from "@/components/modules/boxing/ContainerStatusBadge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +19,7 @@ import { ROUTES } from "@/constants/routes";
 interface ContainersTableProps {
   containers: Container[];
   onAdd?: () => void;
+  onDelete?: (container: Container) => void;
 }
 
 function formatDate(value: string | null | undefined): string {
@@ -31,7 +33,7 @@ function formatDate(value: string | null | undefined): string {
   });
 }
 
-export function ContainersTable({ containers, onAdd }: ContainersTableProps) {
+export function ContainersTable({ containers, onAdd, onDelete }: ContainersTableProps) {
   if (containers.length === 0) {
     return (
       <EmptyState
@@ -107,11 +109,14 @@ export function ContainersTable({ containers, onAdd }: ContainersTableProps) {
                   <ContainerStatusBadge status={container.status} />
                 </TableCell>
                 <TableCell>
-                  <Button asChild variant="outline" size="sm">
-                    <Link href={ROUTES.BOXING.CONTAINER_DETAIL(container.id)}>
-                      View
-                    </Link>
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={ROUTES.BOXING.CONTAINER_DETAIL(container.id)}>
+                        View
+                      </Link>
+                    </Button>
+                    <DeleteRowButton onClick={() => onDelete?.(container)} />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

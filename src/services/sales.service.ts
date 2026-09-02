@@ -112,3 +112,21 @@ export async function createNote(
   );
   return response.data;
 }
+
+export async function deleteSalesBill(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/sales/bills/${id}`
+  );
+  return response.data;
+}
+
+export async function deleteNote(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/sales/notes/${id}`
+  );
+  return response.data;
+}

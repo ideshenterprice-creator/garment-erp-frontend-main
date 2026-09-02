@@ -3,12 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Ban, Pencil, Wrench } from "lucide-react";
+import { ArrowLeft, Ban, Pencil, Trash2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import type { KarigarProfile } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { StatCard } from "@/components/common/StatCard";
-import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { KarigarDrawer } from "@/components/modules/masters/KarigarDrawer";
 import { Button } from "@/components/ui/button";
@@ -24,7 +27,7 @@ import { formatCurrency } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/errorHandler";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
-import { toggleKarigarStatus } from "@/services/masters.service";
+import { toggleKarigarStatus, deleteKarigar } from "@/services/masters.service";
 import { getKarigarPayments } from "@/services/accounts.service";
 
 interface KarigarDetailPageProps {
@@ -42,6 +45,7 @@ export function KarigarDetailPage({ karigar }: KarigarDetailPageProps) {
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   // Accounts API filters by party id (karigar party), not profile id.
   const paymentsQuery = useQuery({
@@ -71,6 +75,19 @@ export function KarigarDetailPage({ karigar }: KarigarDetailPageProps) {
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Failed to update karigar status."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteKarigar(id),
+    onSuccess: () => {
+      toast.success("Karigar deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.KARIGARS });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
+      router.push(ROUTES.MASTERS.KARIGAR);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete karigar."));
     },
   });
 
@@ -123,6 +140,16 @@ export function KarigarDetailPage({ karigar }: KarigarDetailPageProps) {
           >
             <Ban className="size-4" />
             {karigar.isActive ? "Deactivate" : "Activate"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            onClick={() => setDeleteOpen(true)}
+            disabled={deleteMutation.isPending}
+          >
+            <Trash2 className="size-4" />
+            Delete Karigar
           </Button>
         </div>
       </div>
@@ -307,6 +334,16 @@ export function KarigarDetailPage({ karigar }: KarigarDetailPageProps) {
             isActive: !karigar.isActive,
           });
         }}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteOpen(false);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description} ${karigar.party.name} will be deleted.`}
+        onConfirm={() => deleteMutation.mutate(karigar.id)}
       />
     </div>
   );

@@ -11,7 +11,10 @@ import { StatCard } from "@/components/common/StatCard";
 import { FilterBar } from "@/components/common/FilterBar";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
-import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import { ProductTable } from "@/components/modules/masters/ProductTable";
 import { ProductDrawer } from "@/components/modules/masters/ProductDrawer";
 import { Button } from "@/components/ui/button";
@@ -23,6 +26,7 @@ import { getErrorMessage } from "@/lib/errorHandler";
 import {
   getProducts,
   toggleProductStatus,
+  deleteProduct,
 } from "@/services/masters.service";
 
 type ProductFilter =
@@ -44,6 +48,7 @@ export default function ProductMasterPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [statusTarget, setStatusTarget] = useState<Product | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
 
   const filters = {
     category: filter === "ALL" ? undefined : filter,
@@ -91,6 +96,18 @@ export default function ProductMasterPage() {
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Failed to update product status."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteProduct(id),
+    onSuccess: () => {
+      toast.success("Product deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRODUCTS });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete product."));
     },
   });
 
@@ -196,6 +213,7 @@ export default function ProductMasterPage() {
               setDrawerOpen(true);
             }}
             onToggleStatus={setStatusTarget}
+            onDelete={setDeleteTarget}
             onAdd={() => {
               setEditing(null);
               setDrawerOpen(true);
@@ -263,6 +281,21 @@ export default function ProductMasterPage() {
             id: statusTarget.id,
             isActive: !statusTarget.isActive,
           });
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget ? ` ${deleteTarget.name} will be deleted.` : ""
+        }`}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id);
         }}
       />
     </div>

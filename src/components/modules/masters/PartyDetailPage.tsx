@@ -16,7 +16,10 @@ import { format, subDays } from "date-fns";
 import { toast } from "sonner";
 import type { Party } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { PartyDrawer } from "@/components/modules/masters/PartyDrawer";
 import { Button } from "@/components/ui/button";
@@ -358,9 +361,8 @@ export function PartyDetailPage({ party }: PartyDetailPageProps) {
         onClose={() => {
           if (!deleteMutation.isPending) setDeleteOpen(false);
         }}
-        title={`Delete ${party.name} permanently?`}
-        description="This action cannot be undone. The party will be removed completely from the system. Parties linked to existing transactions cannot be deleted."
-        confirmLabel="Delete Permanently"
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description} ${party.name} will be deleted.`}
         onConfirm={() => {
           deleteMutation.mutate(party.id);
         }}

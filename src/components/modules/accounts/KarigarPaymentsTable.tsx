@@ -2,6 +2,7 @@
 
 import type { KarigarPayment } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import { KarigarPaymentStatusBadge } from "@/components/modules/accounts/KarigarPaymentStatusBadge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,12 +19,14 @@ interface KarigarPaymentsTableProps {
   payments: KarigarPayment[];
   onRecordPayment: (payment: KarigarPayment) => void;
   onViewReceipt: (payment: KarigarPayment) => void;
+  onDelete?: (payment: KarigarPayment) => void;
 }
 
 export function KarigarPaymentsTable({
   payments,
   onRecordPayment,
   onViewReceipt,
+  onDelete,
 }: KarigarPaymentsTableProps) {
   if (payments.length === 0) {
     return (
@@ -96,25 +99,28 @@ export function KarigarPaymentsTable({
                   <KarigarPaymentStatusBadge status={payment.status} />
                 </TableCell>
                 <TableCell>
-                  {payment.status === "PENDING" ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
-                      onClick={() => onRecordPayment(payment)}
-                    >
-                      Record Payment
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onViewReceipt(payment)}
-                    >
-                      View Receipt
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {payment.status === "PENDING" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
+                        onClick={() => onRecordPayment(payment)}
+                      >
+                        Record Payment
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onViewReceipt(payment)}
+                      >
+                        View Receipt
+                      </Button>
+                    )}
+                    <DeleteRowButton onClick={() => onDelete?.(payment)} />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import type { SalesNote, SalesNoteType } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import {
   Table,
   TableBody,
@@ -24,11 +25,13 @@ import { cn, formatCurrency } from "@/lib/utils";
 interface CreditDebitNotesTableProps {
   notes: SalesNote[];
   onAdd?: () => void;
+  onDelete?: (note: SalesNote) => void;
 }
 
 export function CreditDebitNotesTable({
   notes,
   onAdd,
+  onDelete,
 }: CreditDebitNotesTableProps) {
   if (notes.length === 0) {
     return (
@@ -68,6 +71,9 @@ export function CreditDebitNotesTable({
                 </TableHead>
                 <TableHead className="min-w-[280px] text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Reason
+                </TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Actions
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -109,6 +115,9 @@ export function CreditDebitNotesTable({
                         {note.reason}
                       </TooltipContent>
                     </Tooltip>
+                  </TableCell>
+                  <TableCell>
+                    <DeleteRowButton onClick={() => onDelete?.(note)} />
                   </TableCell>
                 </TableRow>
               ))}

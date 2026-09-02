@@ -4,6 +4,7 @@ import { Check, Eye, Undo2 } from "lucide-react";
 import { format } from "date-fns";
 import type { PurchaseBill } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import { BillStatusBadge } from "@/components/modules/purchase/BillStatusBadge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ interface BillsTableProps {
   onView: (bill: PurchaseBill) => void;
   onConfirm: (bill: PurchaseBill) => void;
   onReturn: (bill: PurchaseBill) => void;
+  onDelete?: (bill: PurchaseBill) => void;
   onAdd?: () => void;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -36,6 +38,7 @@ export function BillsTable({
   onView,
   onConfirm,
   onReturn,
+  onDelete,
   onAdd,
   emptyTitle = "No purchase bills found",
   emptyDescription = "Try changing filters or create a new purchase bill.",
@@ -184,6 +187,12 @@ export function BillsTable({
                         <Undo2 className="size-4" />
                       </Button>
                     ) : null}
+                    <DeleteRowButton
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete?.(bill);
+                      }}
+                    />
                   </div>
                 </TableCell>
               </TableRow>

@@ -19,6 +19,7 @@ interface ProductTableProps {
   onRowClick?: (product: Product) => void;
   onEdit: (product: Product) => void;
   onToggleStatus: (product: Product) => void;
+  onDelete: (product: Product) => void;
   onAdd?: () => void;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -78,6 +79,7 @@ export function ProductTable({
   onRowClick,
   onEdit,
   onToggleStatus,
+  onDelete,
   onAdd,
   emptyTitle = "No products found",
   emptyDescription = "Try changing filters or add a new product.",
@@ -182,7 +184,7 @@ export function ProductTable({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-8 text-red-500 hover:bg-red-50"
+                      className="size-8 text-red-500 hover:bg-red-50 hover:text-red-600"
                       title={product.isActive ? "Deactivate" : "Activate"}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -190,6 +192,19 @@ export function ProductTable({
                       }}
                     >
                       <Ban className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-red-500 hover:bg-red-50 hover:text-red-600"
+                      title="Delete permanently"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete(product);
+                      }}
+                    >
+                      <Trash2 className="size-4" />
                     </Button>
                   </div>
                 </TableCell>

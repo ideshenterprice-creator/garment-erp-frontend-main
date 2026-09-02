@@ -80,6 +80,15 @@ export async function cancelPurchaseOrder(
   return response.data;
 }
 
+export async function deletePurchaseOrder(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/purchase-orders/${id}`
+  );
+  return response.data;
+}
+
 export async function getPOProductionStatus(
   id: string
 ): Promise<ApiResponse<POProductionStatusResponse>> {

@@ -11,7 +11,10 @@ import { StatCard } from "@/components/common/StatCard";
 import { FilterBar } from "@/components/common/FilterBar";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
-import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import { KarigarTable } from "@/components/modules/masters/KarigarTable";
 import { KarigarDrawer } from "@/components/modules/masters/KarigarDrawer";
 import { Button } from "@/components/ui/button";
@@ -20,6 +23,7 @@ import { getErrorMessage } from "@/lib/errorHandler";
 import {
   getKarigars,
   toggleKarigarStatus,
+  deleteKarigar,
 } from "@/services/masters.service";
 
 type KarigarFilter = "ALL" | "PIECE_RATE" | "WEEKLY_SALARY" | "BOTH";
@@ -34,6 +38,7 @@ export default function KarigarMasterPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<KarigarProfile | null>(null);
   const [statusTarget, setStatusTarget] = useState<KarigarProfile | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<KarigarProfile | null>(null);
 
   const filters = {
     paymentType: filter === "ALL" ? undefined : filter,
@@ -83,6 +88,19 @@ export default function KarigarMasterPage() {
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Failed to update karigar status."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteKarigar(id),
+    onSuccess: () => {
+      toast.success("Karigar deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.KARIGARS });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete karigar."));
     },
   });
 
@@ -172,6 +190,7 @@ export default function KarigarMasterPage() {
               setDrawerOpen(true);
             }}
             onToggleStatus={setStatusTarget}
+            onDelete={setDeleteTarget}
             onAdd={() => {
               setEditing(null);
               setDrawerOpen(true);
@@ -239,6 +258,21 @@ export default function KarigarMasterPage() {
             id: statusTarget.id,
             isActive: !statusTarget.isActive,
           });
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget ? ` ${deleteTarget.party.name} will be deleted.` : ""
+        }`}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id);
         }}
       />
     </div>

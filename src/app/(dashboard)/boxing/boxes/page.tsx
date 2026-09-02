@@ -1,12 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
-import type { BoxFilters } from "@/types";
+import { toast } from "sonner";
+import type { BoxFilters, BoxPacking } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import {
   BoxFilterBar,
 } from "@/components/modules/boxing/BoxFilterBar";
@@ -15,7 +20,8 @@ import { BoxStatCards } from "@/components/modules/boxing/BoxStatCards";
 import { NewBoxDrawer } from "@/components/modules/boxing/NewBoxDrawer";
 import { Button } from "@/components/ui/button";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { getBoxes } from "@/services/boxing.service";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { deleteBox, getBoxes } from "@/services/boxing.service";
 import { getPurchaseOrders } from "@/services/purchaseOrders.service";
 
 const PAGE_SIZE = 10;
@@ -34,6 +40,8 @@ export default function BoxPackingPage() {
     useState<BoxFilters>(defaultFilters);
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<BoxPacking | null>(null);
+  const queryClient = useQueryClient();
 
   const queryFilters = useMemo(() => {
     const status =
@@ -117,6 +125,19 @@ export default function BoxPackingPage() {
     summary?.boxesLoadedInContainer ??
     boxes.filter((box) => box.status === "LOADED").length;
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteBox(id),
+    onSuccess: () => {
+      toast.success("Deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.BOXES });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.CONTAINERS });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete box."));
+    },
+  });
+
   return (
     <div>
       <PageHeader
@@ -166,6 +187,7 @@ export default function BoxPackingPage() {
           <BoxPackingTable
             boxes={boxes}
             onAdd={() => setDrawerOpen(true)}
+            onDelete={setDeleteTarget}
           />
           <Pagination
             page={page}
@@ -182,6 +204,21 @@ export default function BoxPackingPage() {
         open={drawerOpen}
         purchaseOrders={drawerPosQuery.data ?? []}
         onClose={() => setDrawerOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget ? ` ${deleteTarget.boxNumber} will be deleted.` : ""
+        }`}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id);
+        }}
       />
     </div>
   );

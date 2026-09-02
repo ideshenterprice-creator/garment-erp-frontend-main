@@ -61,6 +61,15 @@ export async function returnPurchaseBill(
   return response.data;
 }
 
+export async function deletePurchaseBill(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/purchase/bills/${id}`
+  );
+  return response.data;
+}
+
 export async function getPurchaseRegister(
   params?: ListParams
 ): Promise<ApiResponse<PurchaseRegisterResponse>> {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { GSTRate } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -17,6 +17,7 @@ import {
 interface GSTTableProps {
   rates: GSTRate[];
   onEdit: (rate: GSTRate) => void;
+  onDelete: (rate: GSTRate) => void;
   onAdd?: () => void;
 }
 
@@ -32,7 +33,7 @@ function taxVariant(type: GSTRate["taxType"]) {
   return "cgst_sgst" as const;
 }
 
-export function GSTTable({ rates, onEdit, onAdd }: GSTTableProps) {
+export function GSTTable({ rates, onEdit, onDelete, onAdd }: GSTTableProps) {
   if (rates.length === 0) {
     return (
       <EmptyState
@@ -82,15 +83,27 @@ export function GSTTable({ rates, onEdit, onAdd }: GSTTableProps) {
                 </TableCell>
                 <TableCell className="text-slate-600">{rate.applicableOn}</TableCell>
                 <TableCell>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-8"
-                    onClick={() => onEdit(rate)}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
+                  <div className="flex items-center gap-0.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      onClick={() => onEdit(rate)}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-red-500 hover:bg-red-50 hover:text-red-600"
+                      title="Delete permanently"
+                      onClick={() => onDelete(rate)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

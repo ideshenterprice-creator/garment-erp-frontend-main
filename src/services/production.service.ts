@@ -44,6 +44,15 @@ export async function createCuttingEntry(
   return response.data;
 }
 
+export async function deleteCuttingEntry(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/production/cutting/${id}`
+  );
+  return response.data;
+}
+
 export async function getPrintingEntries(
   params?: ListParams
 ): Promise<ApiResponse<ListWithSummary<PrintingEntry, PrintingListSummary>>> {
@@ -59,6 +68,15 @@ export async function createPrintingEntry(
   const response = await api.post<
     ApiResponse<ProductionCreateResult<PrintingEntry>>
   >("/production/printing", data);
+  return response.data;
+}
+
+export async function deletePrintingEntry(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/production/printing/${id}`
+  );
   return response.data;
 }
 
@@ -80,6 +98,15 @@ export async function createColoringEntry(
   return response.data;
 }
 
+export async function deleteColoringEntry(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/production/coloring/${id}`
+  );
+  return response.data;
+}
+
 export async function getStitchingEntries(
   params?: ListParams
 ): Promise<ApiResponse<ListWithSummary<StitchingEntry, StitchingListSummary>>> {
@@ -98,6 +125,15 @@ export async function createStitchingEntry(
   return response.data;
 }
 
+export async function deleteStitchingEntry(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/production/stitching/${id}`
+  );
+  return response.data;
+}
+
 export async function getFinishingEntries(
   params?: ListParams
 ): Promise<ApiResponse<ListWithSummary<FinishingEntry, FinishingListSummary>>> {
@@ -113,6 +149,15 @@ export async function createFinishingEntry(
   const response = await api.post<
     ApiResponse<ProductionCreateResult<FinishingEntry>>
   >("/production/finishing", data);
+  return response.data;
+}
+
+export async function deleteFinishingEntry(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/production/finishing/${id}`
+  );
   return response.data;
 }
 

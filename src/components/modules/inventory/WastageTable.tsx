@@ -3,6 +3,7 @@
 import { format } from "date-fns";
 import type { CuttingWastage } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import { WastageStatusBadge } from "@/components/modules/inventory/WastageStatusBadge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +19,7 @@ interface WastageTableProps {
   entries: CuttingWastage[];
   onAdd?: () => void;
   onMarkSold?: (entry: CuttingWastage) => void;
+  onDelete?: (entry: CuttingWastage) => void;
   markingSoldId?: string | null;
 }
 
@@ -25,6 +27,7 @@ export function WastageTable({
   entries,
   onAdd,
   onMarkSold,
+  onDelete,
   markingSoldId = null,
 }: WastageTableProps) {
   if (entries.length === 0) {
@@ -92,19 +95,22 @@ export function WastageTable({
                 <WastageStatusBadge status={entry.status} />
               </TableCell>
               <TableCell>
-                {entry.status === "IN_STOCK" && onMarkSold ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={markingSoldId === entry.id}
-                    onClick={() => onMarkSold(entry)}
-                  >
-                    {markingSoldId === entry.id ? "Saving..." : "Mark Sold"}
-                  </Button>
-                ) : (
-                  <span className="text-xs text-muted-foreground">—</span>
-                )}
+                <div className="flex items-center gap-1">
+                  {entry.status === "IN_STOCK" && onMarkSold ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={markingSoldId === entry.id}
+                      onClick={() => onMarkSold(entry)}
+                    >
+                      {markingSoldId === entry.id ? "Saving..." : "Mark Sold"}
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                  <DeleteRowButton onClick={() => onDelete?.(entry)} />
+                </div>
               </TableCell>
             </TableRow>
           ))}

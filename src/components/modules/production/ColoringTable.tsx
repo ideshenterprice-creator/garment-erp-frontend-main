@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import type { ColoringEntry } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import {
   Table,
   TableBody,
@@ -17,9 +18,10 @@ import { ROUTES } from "@/constants/routes";
 interface ColoringTableProps {
   entries: ColoringEntry[];
   onAdd?: () => void;
+  onDelete?: (entry: ColoringEntry) => void;
 }
 
-export function ColoringTable({ entries, onAdd }: ColoringTableProps) {
+export function ColoringTable({ entries, onAdd, onDelete }: ColoringTableProps) {
   const router = useRouter();
 
   if (entries.length === 0) {
@@ -47,6 +49,7 @@ export function ColoringTable({ entries, onAdd }: ColoringTableProps) {
               <TableHead>Returned</TableHead>
               <TableHead>Rejected</TableHead>
               <TableHead>Karigar</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -78,6 +81,14 @@ export function ColoringTable({ entries, onAdd }: ColoringTableProps) {
                     {Number(entry.piecesRejected).toLocaleString("en-IN")}
                   </TableCell>
                   <TableCell>{entry.karigar?.name ?? "—"}</TableCell>
+                  <TableCell>
+                    <DeleteRowButton
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete?.(entry);
+                      }}
+                    />
+                  </TableCell>
                 </TableRow>
               );
             })}

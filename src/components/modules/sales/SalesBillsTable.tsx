@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import type { SalesBill } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import { SalesBillStatusBadge } from "@/components/modules/sales/SalesBillStatusBadge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ interface SalesBillsTableProps {
   onAdd?: () => void;
   onSubmit?: (bill: SalesBill) => void;
   onRecordPayment?: (bill: SalesBill) => void;
+  onDelete?: (bill: SalesBill) => void;
 }
 
 export function SalesBillsTable({
@@ -29,6 +31,7 @@ export function SalesBillsTable({
   onAdd,
   onSubmit,
   onRecordPayment,
+  onDelete,
 }: SalesBillsTableProps) {
   const router = useRouter();
 
@@ -141,6 +144,7 @@ export function SalesBillsTable({
                           Record Payment
                         </Button>
                       ) : null}
+                      <DeleteRowButton onClick={() => onDelete?.(bill)} />
                     </div>
                   </TableCell>
                 </TableRow>

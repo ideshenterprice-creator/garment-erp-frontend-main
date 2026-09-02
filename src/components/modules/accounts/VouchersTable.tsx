@@ -3,6 +3,7 @@
 import { format } from "date-fns";
 import type { Voucher } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import { VoucherTypeBadge } from "@/components/modules/accounts/VoucherTypeBadge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +21,7 @@ interface VouchersTableProps {
   vouchers: Voucher[];
   onAdd?: () => void;
   onView?: (voucher: Voucher) => void;
+  onDelete?: (voucher: Voucher) => void;
 }
 
 function modeLabel(mode: string): string {
@@ -32,6 +34,7 @@ export function VouchersTable({
   vouchers,
   onAdd,
   onView,
+  onDelete,
 }: VouchersTableProps) {
   if (vouchers.length === 0) {
     return (
@@ -95,14 +98,17 @@ export function VouchersTable({
                 <TableCell>{modeLabel(voucher.paymentMode)}</TableCell>
                 <TableCell>{voucher.referenceNo || "—"}</TableCell>
                 <TableCell>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => onView?.(voucher)}
-                  >
-                    View
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onView?.(voucher)}
+                    >
+                      View
+                    </Button>
+                    <DeleteRowButton onClick={() => onDelete?.(voucher)} />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

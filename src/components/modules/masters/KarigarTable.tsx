@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, Pencil } from "lucide-react";
+import { Ban, Pencil, Trash2 } from "lucide-react";
 import type { KarigarProfile } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -19,6 +19,7 @@ interface KarigarTableProps {
   onRowClick: (karigar: KarigarProfile) => void;
   onEdit: (karigar: KarigarProfile) => void;
   onToggleStatus: (karigar: KarigarProfile) => void;
+  onDelete: (karigar: KarigarProfile) => void;
   onAdd?: () => void;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -44,6 +45,7 @@ export function KarigarTable({
   onRowClick,
   onEdit,
   onToggleStatus,
+  onDelete,
   onAdd,
   emptyTitle = "No karigar profiles found",
   emptyDescription = "Create karigar profiles linked to party master.",
@@ -165,7 +167,7 @@ export function KarigarTable({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-8 text-red-500 hover:bg-red-50"
+                      className="size-8 text-red-500 hover:bg-red-50 hover:text-red-600"
                       title={karigar.isActive ? "Deactivate" : "Activate"}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -173,6 +175,19 @@ export function KarigarTable({
                       }}
                     >
                       <Ban className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-red-500 hover:bg-red-50 hover:text-red-600"
+                      title="Delete permanently"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete(karigar);
+                      }}
+                    >
+                      <Trash2 className="size-4" />
                     </Button>
                   </div>
                 </TableCell>

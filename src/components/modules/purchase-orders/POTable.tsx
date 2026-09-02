@@ -4,6 +4,7 @@ import { Eye, X } from "lucide-react";
 import { format } from "date-fns";
 import type { PurchaseOrder, PurchaseOrderStatus } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import { POStatusBadge } from "@/components/modules/purchase-orders/POStatusBadge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ interface POTableProps {
   onRowClick: (order: PurchaseOrder) => void;
   onView: (order: PurchaseOrder) => void;
   onCancel: (order: PurchaseOrder) => void;
+  onDelete?: (order: PurchaseOrder) => void;
   onAdd?: () => void;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -39,6 +41,7 @@ export function POTable({
   onRowClick,
   onView,
   onCancel,
+  onDelete,
   onAdd,
   emptyTitle = "No purchase orders found",
   emptyDescription = "Try changing filters or create a new purchase order.",
@@ -169,6 +172,12 @@ export function POTable({
                         <X className="size-4" />
                       </Button>
                     ) : null}
+                    <DeleteRowButton
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete?.(order);
+                      }}
+                    />
                   </div>
                 </TableCell>
               </TableRow>

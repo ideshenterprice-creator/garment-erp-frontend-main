@@ -34,6 +34,15 @@ export async function confirmKarigarPayment(
   return response.data;
 }
 
+export async function deleteKarigarPayment(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/accounts/karigar-payments/${id}`
+  );
+  return response.data;
+}
+
 export async function getSupplierPayments(
   params?: ListParams
 ): Promise<ApiResponse<SupplierPaymentsListResponse>> {
@@ -70,6 +79,15 @@ export async function createVoucher(
   const response = await api.post<ApiResponse<Voucher>>(
     "/accounts/vouchers",
     data
+  );
+  return response.data;
+}
+
+export async function deleteVoucher(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/accounts/vouchers/${id}`
   );
   return response.data;
 }

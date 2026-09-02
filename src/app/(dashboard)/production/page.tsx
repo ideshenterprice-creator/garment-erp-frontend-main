@@ -1,12 +1,17 @@
 ﻿"use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusCircle } from "lucide-react";
+import { toast } from "sonner";
 import type { ProductionFilters, ProductionStageTab } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import { ColoringTable } from "@/components/modules/production/ColoringTable";
 import { CuttingTable } from "@/components/modules/production/CuttingTable";
 import { FinishingTable } from "@/components/modules/production/FinishingTable";
@@ -23,8 +28,14 @@ import { StitchingTable } from "@/components/modules/production/StitchingTable";
 import { Button } from "@/components/ui/button";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { formatCurrency } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/errorHandler";
 import { getParties } from "@/services/masters.service";
 import {
+  deleteColoringEntry,
+  deleteCuttingEntry,
+  deleteFinishingEntry,
+  deletePrintingEntry,
+  deleteStitchingEntry,
   getColoringEntries,
   getCuttingEntries,
   getFinishingEntries,
@@ -58,6 +69,12 @@ export default function ProductionPage() {
     useState<ProductionFilters>(defaultFilters);
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    label: string;
+    stage: ProductionStageTab;
+  } | null>(null);
+  const queryClient = useQueryClient();
 
   const posQuery = useQuery({
     queryKey: [
@@ -131,6 +148,30 @@ export default function ProductionPage() {
     queryKey: [...QUERY_KEYS.PRODUCTION, "finishing", apiFilters],
     queryFn: () => getFinishingEntries(apiFilters),
     enabled: activeTab === "FINISHING",
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: ({
+      id,
+      stage,
+    }: {
+      id: string;
+      stage: ProductionStageTab;
+    }) => {
+      if (stage === "CUTTING") return deleteCuttingEntry(id);
+      if (stage === "PRINTING") return deletePrintingEntry(id);
+      if (stage === "COLORING") return deleteColoringEntry(id);
+      if (stage === "STITCHING") return deleteStitchingEntry(id);
+      return deleteFinishingEntry(id);
+    },
+    onSuccess: () => {
+      toast.success("Deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRODUCTION });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete entry."));
+    },
   });
 
   const activeQuery =
@@ -307,30 +348,65 @@ export default function ProductionPage() {
             <CuttingTable
               entries={cuttingQuery.data?.data.data ?? []}
               onAdd={() => setDrawerOpen(true)}
+              onDelete={(entry) =>
+                setDeleteTarget({
+                  id: entry.id,
+                  label: entry.entryNumber,
+                  stage: "CUTTING",
+                })
+              }
             />
           ) : null}
           {activeTab === "PRINTING" ? (
             <PrintingTable
               entries={printingQuery.data?.data.data ?? []}
               onAdd={() => setDrawerOpen(true)}
+              onDelete={(entry) =>
+                setDeleteTarget({
+                  id: entry.id,
+                  label: entry.entryNumber,
+                  stage: "PRINTING",
+                })
+              }
             />
           ) : null}
           {activeTab === "COLORING" ? (
             <ColoringTable
               entries={coloringQuery.data?.data.data ?? []}
               onAdd={() => setDrawerOpen(true)}
+              onDelete={(entry) =>
+                setDeleteTarget({
+                  id: entry.id,
+                  label: entry.entryNumber,
+                  stage: "COLORING",
+                })
+              }
             />
           ) : null}
           {activeTab === "STITCHING" ? (
             <StitchingTable
               entries={stitchingQuery.data?.data.data ?? []}
               onAdd={() => setDrawerOpen(true)}
+              onDelete={(entry) =>
+                setDeleteTarget({
+                  id: entry.id,
+                  label: entry.entryNumber,
+                  stage: "STITCHING",
+                })
+              }
             />
           ) : null}
           {activeTab === "FINISHING" ? (
             <FinishingTable
               entries={finishingQuery.data?.data.data ?? []}
               onAdd={() => setDrawerOpen(true)}
+              onDelete={(entry) =>
+                setDeleteTarget({
+                  id: entry.id,
+                  label: entry.entryNumber,
+                  stage: "FINISHING",
+                })
+              }
             />
           ) : null}
 
@@ -376,6 +452,21 @@ export default function ProductionPage() {
         onClose={() => setDrawerOpen(false)}
         purchaseOrders={drawerPOs}
         karigars={karigars}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget ? ` ${deleteTarget.label} will be deleted.` : ""
+        }`}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget);
+        }}
       />
     </div>
   );

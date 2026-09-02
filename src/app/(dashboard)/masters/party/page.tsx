@@ -11,7 +11,10 @@ import { StatCard } from "@/components/common/StatCard";
 import { FilterBar } from "@/components/common/FilterBar";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
-import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import { PartyTable } from "@/components/modules/masters/PartyTable";
 import { PartyDrawer } from "@/components/modules/masters/PartyDrawer";
 import { Button } from "@/components/ui/button";
@@ -269,9 +272,10 @@ export default function PartyMasterPage() {
         onClose={() => {
           if (!deleteMutation.isPending) setDeleteTarget(null);
         }}
-        title={`Delete ${deleteTarget?.name ?? "party"} permanently?`}
-        description="This action cannot be undone. The party will be removed completely from the system. Parties linked to existing transactions cannot be deleted."
-        confirmLabel="Delete Permanently"
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget ? ` ${deleteTarget.name} will be deleted.` : ""
+        }`}
         onConfirm={() => {
           if (!deleteTarget) return;
           deleteMutation.mutate(deleteTarget.id);

@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import type { IssueRecord } from "@/types";
 import { getUnitLabel } from "@/lib/inventory";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import { IssueStatusBadge } from "@/components/modules/inventory/IssueStatusBadge";
 import { IssueTypeBadge } from "@/components/modules/inventory/IssueTypeBadge";
 import {
@@ -17,9 +18,10 @@ import {
 
 interface IssueHistoryTableProps {
   issues: IssueRecord[];
+  onDelete?: (issue: IssueRecord) => void;
 }
 
-export function IssueHistoryTable({ issues }: IssueHistoryTableProps) {
+export function IssueHistoryTable({ issues, onDelete }: IssueHistoryTableProps) {
   if (issues.length === 0) {
     return (
       <EmptyState
@@ -62,6 +64,9 @@ export function IssueHistoryTable({ issues }: IssueHistoryTableProps) {
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Status
               </TableHead>
+              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Actions
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -90,6 +95,9 @@ export function IssueHistoryTable({ issues }: IssueHistoryTableProps) {
                 </TableCell>
                 <TableCell>
                   <IssueStatusBadge status={issue.status} />
+                </TableCell>
+                <TableCell>
+                  <DeleteRowButton onClick={() => onDelete?.(issue)} />
                 </TableCell>
               </TableRow>
             ))}

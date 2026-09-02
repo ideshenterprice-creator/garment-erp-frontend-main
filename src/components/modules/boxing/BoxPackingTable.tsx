@@ -2,6 +2,7 @@
 
 import type { BoxPacking } from "@/types";
 import { EmptyState } from "@/components/common/EmptyState";
+import { DeleteRowButton } from "@/components/common/DeleteRowButton";
 import { BoxStatusBadge } from "@/components/modules/boxing/BoxStatusBadge";
 import {
   Table,
@@ -15,9 +16,10 @@ import {
 interface BoxPackingTableProps {
   boxes: BoxPacking[];
   onAdd?: () => void;
+  onDelete?: (box: BoxPacking) => void;
 }
 
-export function BoxPackingTable({ boxes, onAdd }: BoxPackingTableProps) {
+export function BoxPackingTable({ boxes, onAdd, onDelete }: BoxPackingTableProps) {
   if (boxes.length === 0) {
     return (
       <EmptyState
@@ -74,6 +76,9 @@ export function BoxPackingTable({ boxes, onAdd }: BoxPackingTableProps) {
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Status
               </TableHead>
+              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Actions
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -99,6 +104,9 @@ export function BoxPackingTable({ boxes, onAdd }: BoxPackingTableProps) {
                 </TableCell>
                 <TableCell>
                   <BoxStatusBadge status={box.status} />
+                </TableCell>
+                <TableCell>
+                  <DeleteRowButton onClick={() => onDelete?.(box)} />
                 </TableCell>
               </TableRow>
             ))}

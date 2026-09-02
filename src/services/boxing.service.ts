@@ -32,6 +32,15 @@ export async function createBox(
   return response.data;
 }
 
+export async function deleteBox(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/boxing/boxes/${id}`
+  );
+  return response.data;
+}
+
 export async function getContainers(
   params?: ListParams
 ): Promise<ApiResponse<PaginatedResponse<Container>>> {
@@ -88,6 +97,15 @@ export async function markContainerDispatched(
   const response = await api.patch<ApiResponse<Container>>(
     `/boxing/containers/${id}/mark-dispatched`,
     data
+  );
+  return response.data;
+}
+
+export async function deleteContainer(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/boxing/containers/${id}`
   );
   return response.data;
 }

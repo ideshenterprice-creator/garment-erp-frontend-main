@@ -9,7 +9,10 @@ import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
-import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import { OperationsTable } from "@/components/modules/masters/OperationsTable";
 import { OperationsDrawer } from "@/components/modules/masters/OperationsDrawer";
 import { Button } from "@/components/ui/button";
@@ -20,6 +23,7 @@ import { getErrorMessage } from "@/lib/errorHandler";
 import {
   getOperations,
   toggleOperationStatus,
+  deleteOperation,
 } from "@/services/masters.service";
 
 type StageFilter = "ALL" | OperationStage;
@@ -35,6 +39,7 @@ export default function OperationsMasterPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<Operation | null>(null);
   const [statusTarget, setStatusTarget] = useState<Operation | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Operation | null>(null);
 
   const filters = {
     stage: filter === "ALL" ? undefined : filter,
@@ -65,6 +70,18 @@ export default function OperationsMasterPage() {
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Failed to update operation status."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteOperation(id),
+    onSuccess: () => {
+      toast.success("Operation deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.OPERATIONS });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete operation."));
     },
   });
 
@@ -155,6 +172,7 @@ export default function OperationsMasterPage() {
               setDrawerOpen(true);
             }}
             onToggleStatus={setStatusTarget}
+            onDelete={setDeleteTarget}
             onAdd={() => {
               setEditing(null);
               setDrawerOpen(true);
@@ -222,6 +240,21 @@ export default function OperationsMasterPage() {
             id: statusTarget.id,
             isActive: !statusTarget.isActive,
           });
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget ? ` ${deleteTarget.name} will be deleted.` : ""
+        }`}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id);
         }}
       />
     </div>

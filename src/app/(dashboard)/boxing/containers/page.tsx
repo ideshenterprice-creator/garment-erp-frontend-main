@@ -1,18 +1,24 @@
 ﻿"use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
-import type { ContainerFilters } from "@/types";
+import { toast } from "sonner";
+import type { Container, ContainerFilters } from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import { ContainerFilterBar } from "@/components/modules/boxing/ContainerFilterBar";
 import { ContainersTable } from "@/components/modules/boxing/ContainersTable";
 import { NewContainerDrawer } from "@/components/modules/boxing/NewContainerDrawer";
 import { Button } from "@/components/ui/button";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { getContainers } from "@/services/boxing.service";
+import { getErrorMessage } from "@/lib/errorHandler";
+import { deleteContainer, getContainers } from "@/services/boxing.service";
 import { getPurchaseOrders } from "@/services/purchaseOrders.service";
 
 const PAGE_SIZE = 10;
@@ -29,6 +35,8 @@ export default function ContainersPage() {
     useState<ContainerFilters>(defaultFilters);
   const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Container | null>(null);
+  const queryClient = useQueryClient();
 
   const queryFilters = useMemo(() => {
     const status =
@@ -75,6 +83,19 @@ export default function ContainersPage() {
   const total = containersQuery.data?.data.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteContainer(id),
+    onSuccess: () => {
+      toast.success("Deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.CONTAINERS });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.BOXES });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete container."));
+    },
+  });
+
   return (
     <div>
       <PageHeader
@@ -118,6 +139,7 @@ export default function ContainersPage() {
           <ContainersTable
             containers={containers}
             onAdd={() => setDrawerOpen(true)}
+            onDelete={setDeleteTarget}
           />
           <Pagination
             page={page}
@@ -134,6 +156,23 @@ export default function ContainersPage() {
         open={drawerOpen}
         purchaseOrders={posQuery.data?.data.data ?? []}
         onClose={() => setDrawerOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget
+            ? ` ${deleteTarget.containerNumber} will be deleted.`
+            : ""
+        }`}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id);
+        }}
       />
     </div>
   );

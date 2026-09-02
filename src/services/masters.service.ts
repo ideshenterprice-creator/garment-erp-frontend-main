@@ -124,6 +124,15 @@ export async function toggleProductStatus(
   return response.data;
 }
 
+export async function deleteProduct(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/masters/products/${id}`
+  );
+  return response.data;
+}
+
 export async function getOperations(
   params?: ListParams
 ): Promise<ApiResponse<PaginatedResponse<Operation>>> {
@@ -166,6 +175,15 @@ export async function toggleOperationStatus(
   return response.data;
 }
 
+export async function deleteOperation(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/masters/operations/${id}`
+  );
+  return response.data;
+}
+
 export async function getGSTRates(): Promise<ApiResponse<GSTRate[]>> {
   const response = await api.get<ApiResponse<GSTRate[]>>("/masters/gst");
   return response.data;
@@ -185,6 +203,15 @@ export async function updateGSTRate(
   const response = await api.put<ApiResponse<GSTRate>>(
     `/masters/gst/${id}`,
     data
+  );
+  return response.data;
+}
+
+export async function deleteGSTRate(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/masters/gst/${id}`
   );
   return response.data;
 }
@@ -235,6 +262,15 @@ export async function toggleKarigarStatus(
   const response = await api.patch<ApiResponse<KarigarProfile>>(
     `/masters/karigars/${id}/status`,
     { isActive }
+  );
+  return response.data;
+}
+
+export async function deleteKarigar(
+  id: string
+): Promise<ApiResponse<{ id: string; message: string }>> {
+  const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
+    `/masters/karigars/${id}`
   );
   return response.data;
 }

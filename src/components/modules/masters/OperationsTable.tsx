@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, Pencil } from "lucide-react";
+import { Ban, Pencil, Trash2 } from "lucide-react";
 import type { Operation } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -18,6 +18,7 @@ interface OperationsTableProps {
   operations: Operation[];
   onEdit: (operation: Operation) => void;
   onToggleStatus: (operation: Operation) => void;
+  onDelete: (operation: Operation) => void;
   onAdd?: () => void;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -49,6 +50,7 @@ export function OperationsTable({
   operations,
   onEdit,
   onToggleStatus,
+  onDelete,
   onAdd,
   emptyTitle = "No operations found",
   emptyDescription = "Add production operations and piece rates.",
@@ -141,11 +143,21 @@ export function OperationsTable({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-8 text-red-500 hover:bg-red-50"
+                      className="size-8 text-red-500 hover:bg-red-50 hover:text-red-600"
                       title={operation.isActive ? "Deactivate" : "Activate"}
                       onClick={() => onToggleStatus(operation)}
                     >
                       <Ban className="size-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-red-500 hover:bg-red-50 hover:text-red-600"
+                      title="Delete permanently"
+                      onClick={() => onDelete(operation)}
+                    >
+                      <Trash2 className="size-4" />
                     </Button>
                   </div>
                 </TableCell>

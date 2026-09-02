@@ -6,6 +6,10 @@ import { FileText, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { SalesBill } from "@/types";
+import {
+  ConfirmDialog,
+  PERMANENT_DELETE,
+} from "@/components/common/ConfirmDialog";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
 import { Pagination } from "@/components/common/Pagination";
@@ -21,7 +25,11 @@ import { Button } from "@/components/ui/button";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
 import { getErrorMessage } from "@/lib/errorHandler";
-import { getSalesBills, submitSalesBill } from "@/services/sales.service";
+import {
+  deleteSalesBill,
+  getSalesBills,
+  submitSalesBill,
+} from "@/services/sales.service";
 
 const PAGE_SIZE = 10;
 
@@ -32,6 +40,7 @@ export default function SalesBillsPage() {
   const [page, setPage] = useState(1);
   const [submitTarget, setSubmitTarget] = useState<SalesBill | null>(null);
   const [paymentBillId, setPaymentBillId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SalesBill | null>(null);
 
   const filters = {
     status: filter === "ALL" ? undefined : filter,
@@ -53,6 +62,20 @@ export default function SalesBillsPage() {
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Failed to submit bill."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteSalesBill(id),
+    onSuccess: () => {
+      toast.success("Deleted permanently.");
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SALES_BILLS });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SALES_NOTES });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STOCK });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete sales bill."));
     },
   });
 
@@ -120,6 +143,7 @@ export default function SalesBillsPage() {
             onAdd={() => router.push(ROUTES.SALES.NEW_BILL)}
             onSubmit={setSubmitTarget}
             onRecordPayment={(bill) => setPaymentBillId(bill.id)}
+            onDelete={setDeleteTarget}
           />
           <Pagination
             page={page}
@@ -144,6 +168,21 @@ export default function SalesBillsPage() {
         open={Boolean(paymentBillId)}
         billId={paymentBillId}
         onClose={() => setPaymentBillId(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!deleteMutation.isPending) setDeleteTarget(null);
+        }}
+        {...PERMANENT_DELETE}
+        description={`${PERMANENT_DELETE.description}${
+          deleteTarget ? ` ${deleteTarget.invoiceNumber} will be deleted.` : ""
+        }`}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id);
+        }}
       />
     </div>
   );

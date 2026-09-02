@@ -13,7 +13,7 @@ NEXT_PUBLIC_API_URL=https://<backend-host>/api
 NEXT_PUBLIC_APP_URL=https://<this-vercel-domain>
 ```
 
-On Vercel, `NEXT_PUBLIC_API_URL` must be the public HTTPS backend, not `localhost`. Production builds fail if this is missing or still points at localhost.
+Set `NEXT_PUBLIC_API_URL` to the public HTTPS backend (`https://<backend-host>/api`), not `localhost`. If a localhost value is imported from `.env.example`, the app falls back to same-origin `/api` — then also set `API_PROXY_TARGET=https://<backend-host>`.
 
 Current production frontend:
 

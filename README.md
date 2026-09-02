@@ -52,4 +52,4 @@ NEXT_PUBLIC_APP_URL=https://<frontend-host>
 
 Do not put `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, or JWT secrets in frontend env.
 
-Vercel production builds refuse `NEXT_PUBLIC_API_URL` values that point at localhost (`VERCEL_ENV=production`).
+If Vercel still has a localhost `NEXT_PUBLIC_API_URL`, the browser uses same-origin `/api`. Set `API_PROXY_TARGET` to the deployed backend origin, or replace `NEXT_PUBLIC_API_URL` with `https://<backend-host>/api`.

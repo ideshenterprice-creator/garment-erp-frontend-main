@@ -105,6 +105,8 @@ export interface Product {
   unit: ProductUnit;
   gstRate: number;
   description: string;
+  imagePath?: string | null;
+  imageUrl?: string | null;
   isActive: boolean;
   sizes?: ProductSize[];
 }

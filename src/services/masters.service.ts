@@ -133,6 +133,118 @@ export async function deleteProduct(
   return response.data;
 }
 
+function resolveImageMime(file: File): "image/jpeg" | "image/png" | "image/webp" | null {
+  const type = file.type === "image/jpg" ? "image/jpeg" : file.type;
+  if (type === "image/jpeg" || type === "image/png" || type === "image/webp") {
+    return type;
+  }
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".webp")) return "image/webp";
+  return null;
+}
+
+function isNonRetryableUploadError(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("response" in error)) {
+    return false;
+  }
+  const response = (
+    error as {
+      response?: { status?: number; data?: { code?: string; error?: { code?: string } } };
+    }
+  ).response;
+  const status = response?.status;
+  const code = response?.data?.code ?? response?.data?.error?.code;
+  if (status === 401 || status === 403) return true;
+  if (status === 400 && code !== "IMAGE_NOT_UPLOADED") return true;
+  return code === "STORAGE_NOT_CONFIGURED";
+}
+
+interface ProductImageUploadSession {
+  uploadUrl: string;
+  token: string;
+  objectPath: string;
+  mimeType: string;
+}
+
+async function uploadProductImageViaSignedUrl(
+  id: string,
+  file: File
+): Promise<ApiResponse<Product>> {
+  const mimeType = resolveImageMime(file);
+  if (!mimeType) {
+    throw new Error("Use a JPEG, PNG, or WebP image.");
+  }
+
+  const session = await api.post<ApiResponse<ProductImageUploadSession>>(
+    `/masters/products/${id}/image/upload-url`,
+    {
+      fileName: file.name || "product-image.jpg",
+      mimeType,
+      sizeBytes: file.size,
+    }
+  );
+
+  const { uploadUrl, objectPath } = session.data.data;
+  const putResponse = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": mimeType },
+    body: file,
+  });
+  if (!putResponse.ok) {
+    throw new Error(`Could not store the image (${putResponse.status}).`);
+  }
+
+  const confirmed = await api.post<ApiResponse<Product>>(
+    `/masters/products/${id}/image/confirm`,
+    {
+      objectPath,
+      originalName: file.name || "product-image.jpg",
+      mimeType,
+      sizeBytes: file.size,
+    }
+  );
+  return confirmed.data;
+}
+
+async function uploadProductImageViaMultipart(
+  id: string,
+  file: File
+): Promise<ApiResponse<Product>> {
+  const formData = new FormData();
+  formData.append("image", file, file.name || "product-image.jpg");
+  const response = await api.post<ApiResponse<Product>>(
+    `/masters/products/${id}/image`,
+    formData,
+    { timeout: 60_000 }
+  );
+  return response.data;
+}
+
+export async function uploadProductImage(
+  id: string,
+  file: File
+): Promise<ApiResponse<Product>> {
+  try {
+    return await uploadProductImageViaSignedUrl(id, file);
+  } catch (error) {
+    if (isNonRetryableUploadError(error)) {
+      throw error;
+    }
+    return uploadProductImageViaMultipart(id, file);
+  }
+}
+
+export async function deleteProductImage(
+  id: string
+): Promise<ApiResponse<Product>> {
+  const response = await api.delete<ApiResponse<Product>>(
+    `/masters/products/${id}/image`
+  );
+  return response.data;
+}
+
 export async function getOperations(
   params?: ListParams
 ): Promise<ApiResponse<PaginatedResponse<Operation>>> {

@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Camera } from "lucide-react";
 import { toast } from "sonner";
 import type { CreateProductPayload, Product, SizeLabel } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
@@ -23,7 +22,16 @@ import {
 import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/errorHandler";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { createProduct, updateProduct } from "@/services/masters.service";
+import {
+  createProduct,
+  deleteProductImage,
+  updateProduct,
+  uploadProductImage,
+} from "@/services/masters.service";
+import {
+  ProductImageDropzone,
+  validateProductImage,
+} from "@/components/modules/masters/ProductImageDropzone";
 
 const sizeOptions: { label: string; value: SizeLabel }[] = [
   { label: "0-3M", value: "SIZE_0_3M" },
@@ -35,7 +43,7 @@ const sizeOptions: { label: string; value: SizeLabel }[] = [
 ];
 
 const productSchema = z.object({
-  name: z.string().min(1, "Product name is required"),
+  name: z.string().min(2, "Product name must be at least 2 characters"),
   category: z.enum(["RAW_MATERIAL", "FINISHED_GOOD", "ACCESSORY", "WASTAGE"]),
   unit: z.enum(["KG", "PCS", "METERS", "ROLLS"]),
   gstRate: z.number().min(0, "GST rate is required"),
@@ -63,6 +71,12 @@ const defaultValues: ProductFormValues = {
 export function ProductDrawer({ open, onClose, product }: ProductDrawerProps) {
   const isEdit = Boolean(product);
   const queryClient = useQueryClient();
+  const persistedIdRef = useRef<string | null>(product?.id ?? null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [removeExistingImage, setRemoveExistingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [savePhase, setSavePhase] = useState<"idle" | "saving" | "uploading">("idle");
 
   const {
     register,
@@ -82,6 +96,12 @@ export function ProductDrawer({ open, onClose, product }: ProductDrawerProps) {
 
   useEffect(() => {
     if (!open) return;
+    persistedIdRef.current = product?.id ?? null;
+    setImageFile(null);
+    setRemoveExistingImage(false);
+    setImageError(null);
+    setSavePhase("idle");
+    setImagePreview(product?.imageUrl ?? null);
     if (product) {
       reset({
         name: product.name,
@@ -96,6 +116,13 @@ export function ProductDrawer({ open, onClose, product }: ProductDrawerProps) {
     }
   }, [open, product, reset]);
 
+  useEffect(() => {
+    if (!imageFile) return;
+    const objectUrl = URL.createObjectURL(imageFile);
+    setImagePreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [imageFile]);
+
   function toggleSize(size: SizeLabel) {
     const next = sizes.includes(size)
       ? sizes.filter((item) => item !== size)
@@ -103,46 +130,80 @@ export function ProductDrawer({ open, onClose, product }: ProductDrawerProps) {
     setValue("sizes", next, { shouldValidate: true });
   }
 
-  const addProductMutation = useMutation({
-    mutationFn: (data: CreateProductPayload) => createProduct(data),
-    onSuccess: () => {
-      toast.success("Product added successfully.");
+  function handleImageSelected(file: File) {
+    const validationError = validateProductImage(file);
+    if (validationError) {
+      setImageError(validationError);
+      return;
+    }
+    setImageError(null);
+    setRemoveExistingImage(false);
+    setImageFile(file);
+  }
+
+  function handleImageRemoved() {
+    setImageError(null);
+    setImageFile(null);
+    setImagePreview(null);
+    if (product?.imageUrl) {
+      setRemoveExistingImage(true);
+    }
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: CreateProductPayload) => {
+      setSavePhase("saving");
+      const existingId = persistedIdRef.current;
+      let saved: Product;
+      if (existingId) {
+        saved = (await updateProduct(existingId, data)).data;
+      } else {
+        saved = (await createProduct(data)).data;
+        persistedIdRef.current = saved.id;
+      }
+
+      if (imageFile) {
+        setSavePhase("uploading");
+        saved = (await uploadProductImage(saved.id, imageFile)).data;
+      } else if (existingId && removeExistingImage && (product?.imagePath || product?.imageUrl)) {
+        setSavePhase("uploading");
+        saved = (await deleteProductImage(saved.id)).data;
+      }
+
+      return { saved, wasUpdate: Boolean(existingId) };
+    },
+    onSuccess: (result) => {
+      toast.success(result.wasUpdate ? "Product updated." : "Product added successfully.");
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRODUCTS });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.NOTIFICATIONS });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.STOCK });
+      if (result.saved.id) {
+        void queryClient.invalidateQueries({
+          queryKey: [...QUERY_KEYS.PRODUCTS, result.saved.id],
+        });
+      }
       onClose();
       reset(defaultValues);
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, "Failed to add product."));
+      const createdWithoutClosing = Boolean(persistedIdRef.current) && !isEdit;
+      toast.error(
+        getErrorMessage(
+          error,
+          createdWithoutClosing
+            ? "Product was created, but the image could not be saved. You can retry from this form."
+            : isEdit
+              ? "Failed to update product."
+              : "Failed to add product."
+        )
+      );
+    },
+    onSettled: () => {
+      setSavePhase("idle");
     },
   });
 
-  const editProductMutation = useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: string;
-      data: Partial<CreateProductPayload>;
-    }) => updateProduct(id, data),
-    onSuccess: () => {
-      toast.success("Product updated.");
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRODUCTS });
-      if (product?.id) {
-        void queryClient.invalidateQueries({
-          queryKey: [...QUERY_KEYS.PRODUCTS, product.id],
-        });
-      }
-      onClose();
-    },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, "Failed to update product."));
-    },
-  });
-
-  const isPending =
-    addProductMutation.isPending || editProductMutation.isPending;
+  const isPending = saveMutation.isPending;
 
   function onSubmit(values: ProductFormValues) {
     const payload: CreateProductPayload = {
@@ -156,18 +217,14 @@ export function ProductDrawer({ open, onClose, product }: ProductDrawerProps) {
         : {}),
     };
 
-    if (isEdit && product) {
-      editProductMutation.mutate({ id: product.id, data: payload });
-      return;
-    }
-    addProductMutation.mutate(payload);
+    saveMutation.mutate(payload);
   }
 
   return (
     <DrawerForm
       open={open}
       onClose={onClose}
-      title={isEdit ? "Edit Product" : "Add New Product"}
+      title={persistedIdRef.current || isEdit ? "Edit Product" : "Add New Product"}
       description="Configure basic information and production rules."
       footer={
         <div className="flex items-center justify-end gap-3">
@@ -180,20 +237,25 @@ export function ProductDrawer({ open, onClose, product }: ProductDrawerProps) {
             disabled={isPending}
             className="bg-[#1b3a3a] text-white hover:bg-[#1b3a3a]/90"
           >
-            {isPending
-              ? "Saving..."
-              : isEdit
-                ? "Update Product"
-                : "Save Product"}
+            {savePhase === "uploading"
+              ? "Uploading image..."
+              : isPending
+                ? "Saving..."
+                : persistedIdRef.current || isEdit
+                  ? "Update Product"
+                  : "Save Product"}
           </Button>
         </div>
       }
     >
       <form id="product-form" onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-        <div className="flex h-28 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-500">
-          <Camera className="mb-2 size-6" />
-          <p className="text-sm">Upload Product Image</p>
-        </div>
+        <ProductImageDropzone
+          previewUrl={imagePreview}
+          disabled={isPending}
+          error={imageError}
+          onFileSelected={handleImageSelected}
+          onRemove={handleImageRemoved}
+        />
 
         <div className="flex flex-col gap-2">
           <Label htmlFor="product-name">

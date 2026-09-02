@@ -83,7 +83,15 @@ export function ProductDetailPage({ product }: ProductDetailPageProps) {
             <ArrowLeft className="size-5" />
           </button>
           <div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3">
+              {product.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={product.imageUrl}
+                  alt=""
+                  className="size-14 rounded-lg border border-slate-200 object-cover"
+                />
+              ) : null}
               <h1 className="text-2xl font-bold text-slate-900 md:text-[28px]">
                 {product.name}
               </h1>
@@ -122,6 +130,18 @@ export function ProductDetailPage({ product }: ProductDetailPageProps) {
             <Info className="size-4 text-slate-500" />
             <h2 className="font-semibold text-slate-900">Product Info</h2>
           </div>
+          {product.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              className="mb-4 h-48 w-full rounded-lg border border-slate-100 object-cover"
+            />
+          ) : (
+            <div className="mb-4 flex h-48 w-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
+              No product image yet. Use Edit Product to upload one.
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">

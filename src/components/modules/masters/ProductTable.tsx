@@ -145,9 +145,18 @@ export function ProductTable({
               >
                 <TableCell>
                   <div className="flex items-center gap-2 font-medium text-slate-900">
-                    <span className="flex size-8 items-center justify-center rounded-md bg-slate-100 text-slate-600">
-                      <ProductIcon category={product.category} />
-                    </span>
+                    {product.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={product.imageUrl}
+                        alt=""
+                        className="size-8 rounded-md object-cover"
+                      />
+                    ) : (
+                      <span className="flex size-8 items-center justify-center rounded-md bg-slate-100 text-slate-600">
+                        <ProductIcon category={product.category} />
+                      </span>
+                    )}
                     {product.name}
                   </div>
                 </TableCell>

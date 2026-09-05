@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
-import { getMe, refreshToken } from "@/services/auth.service";
+import { getMe } from "@/services/auth.service";
 import { ROUTES } from "@/constants/routes";
 import { isLikelyJwt } from "@/lib/apiBase";
+import { refreshAccessToken } from "@/lib/refreshSession";
 
 interface UseAuthResult {
   isLoading: boolean;
@@ -36,11 +37,7 @@ export function useAuth(): UseAuthResult {
       setIsLoading(true);
 
       try {
-        const refreshResponse = await refreshToken();
-        const newAccessToken = refreshResponse.data.accessToken;
-
-        useAuthStore.getState().updateAccessToken(newAccessToken);
-
+        const newAccessToken = await refreshAccessToken();
         const meResponse = await getMe();
         const me = meResponse.data;
 

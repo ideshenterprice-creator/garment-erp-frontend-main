@@ -156,7 +156,7 @@ function isNonRetryableUploadError(error: unknown): boolean {
   ).response;
   const status = response?.status;
   const code = response?.data?.code ?? response?.data?.error?.code;
-  if (status === 401 || status === 403) return true;
+  if (status === 401 || status === 403 || status === 404) return true;
   if (status === 400 && code !== "IMAGE_NOT_UPLOADED") return true;
   return code === "STORAGE_NOT_CONFIGURED";
 }

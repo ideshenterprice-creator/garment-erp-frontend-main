@@ -6,13 +6,7 @@ import axios, {
 import { useAuthStore } from "@/store/authStore";
 import { ROUTES } from "@/constants/routes";
 import { getApiBaseUrl, isLikelyJwt } from "@/lib/apiBase";
-
-interface RefreshResponse {
-  success: boolean;
-  data: {
-    accessToken: string;
-  };
-}
+import { refreshAccessToken } from "@/lib/refreshSession";
 
 const api = axios.create({
   baseURL: getApiBaseUrl() || undefined,
@@ -55,14 +49,14 @@ function processQueue(error: unknown, token: string | null = null) {
   failedQueue = [];
 }
 
-function isRefreshRequest(config?: AxiosRequestConfig): boolean {
+function isAuthSessionRequest(config?: AxiosRequestConfig): boolean {
   const url = config?.url ?? "";
-  return url.includes("/auth/refresh");
+  return url.includes("/auth/refresh") || url.includes("/auth/logout");
 }
 
 function forceLogout() {
   useAuthStore.getState().logout();
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && window.location.pathname !== ROUTES.AUTH.LOGIN) {
     window.location.href = ROUTES.AUTH.LOGIN;
   }
 }
@@ -78,8 +72,7 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Refresh endpoint itself failed — do not retry
-    if (isRefreshRequest(originalRequest)) {
+    if (isAuthSessionRequest(originalRequest)) {
       forceLogout();
       return Promise.reject(error);
     }
@@ -104,14 +97,7 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const refreshResponse = await axios.post<RefreshResponse>(
-        `${getApiBaseUrl()}/auth/refresh`,
-        {},
-        { withCredentials: true }
-      );
-
-      const newToken = refreshResponse.data.data.accessToken;
-      useAuthStore.getState().updateAccessToken(newToken);
+      const newToken = await refreshAccessToken();
       processQueue(null, newToken);
 
       if (!originalRequest.headers) {

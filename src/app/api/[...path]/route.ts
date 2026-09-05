@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveBackendOrigin } from "@/lib/apiBase";
+import {
+  HOP_BY_HOP,
+  readSetCookies,
+  rewriteSetCookieForFrontend,
+} from "@/lib/proxyCookies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
-
-const HOP_BY_HOP = new Set([
-  "connection",
-  "keep-alive",
-  "proxy-authenticate",
-  "proxy-authorization",
-  "te",
-  "trailers",
-  "transfer-encoding",
-  "upgrade",
-  "host",
-  "content-length",
-  "content-encoding",
-]);
 
 type RouteContext = { params: { path: string[] } };
 
@@ -44,6 +35,10 @@ async function proxy(req: NextRequest, path: string[]) {
     if (HOP_BY_HOP.has(key.toLowerCase())) return;
     headers.set(key, value);
   });
+  const cookie = req.headers.get("cookie");
+  if (cookie) {
+    headers.set("cookie", cookie);
+  }
 
   const method = req.method.toUpperCase();
   const hasBody = method !== "GET" && method !== "HEAD";
@@ -74,19 +69,23 @@ async function proxy(req: NextRequest, path: string[]) {
     outgoing.set(key, value);
   });
 
-  const cookies =
-    typeof upstream.headers.getSetCookie === "function"
-      ? upstream.headers.getSetCookie()
-      : [];
-  for (const cookie of cookies) {
-    outgoing.append("set-cookie", cookie);
-  }
+  const setCookies = readSetCookies(upstream.headers).map(rewriteSetCookieForFrontend);
 
-  return new NextResponse(upstream.body, {
+  // Buffering auth cookie responses avoids a Next.js streaming bug that drops Set-Cookie.
+  const body =
+    setCookies.length > 0 ? await upstream.arrayBuffer() : upstream.body;
+
+  const response = new NextResponse(body, {
     status: upstream.status,
     statusText: upstream.statusText,
     headers: outgoing,
   });
+
+  for (const cookieValue of setCookies) {
+    response.headers.append("set-cookie", cookieValue);
+  }
+
+  return response;
 }
 
 export async function GET(req: NextRequest, ctx: RouteContext) {

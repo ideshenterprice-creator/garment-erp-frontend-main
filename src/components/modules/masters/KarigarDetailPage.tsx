@@ -27,8 +27,9 @@ import { formatCurrency } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/errorHandler";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
-import { toggleKarigarStatus, deleteKarigar } from "@/services/masters.service";
+import { toggleKarigarStatus, deleteKarigar, getKarigarLedger, getKarigarWeeklyStatements } from "@/services/masters.service";
 import { getKarigarPayments } from "@/services/accounts.service";
+import { KarigarPaymentStatusBadge } from "@/components/modules/accounts/KarigarPaymentStatusBadge";
 
 interface KarigarDetailPageProps {
   karigar: KarigarProfile;
@@ -62,6 +63,19 @@ export function KarigarDetailPage({ karigar }: KarigarDetailPageProps) {
   });
 
   const payments = paymentsQuery.data?.data.data ?? [];
+
+  const weeklyQuery = useQuery({
+    queryKey: [...QUERY_KEYS.KARIGARS, karigar.id, "weekly-statements"],
+    queryFn: () => getKarigarWeeklyStatements(karigar.id, { limit: 8 }),
+  });
+
+  const ledgerQuery = useQuery({
+    queryKey: [...QUERY_KEYS.KARIGARS, karigar.id, "ledger"],
+    queryFn: () => getKarigarLedger(karigar.id),
+  });
+
+  const weeklyStatements = weeklyQuery.data?.data.data ?? [];
+  const ledgerEntries = ledgerQuery.data?.data.entries ?? [];
 
   const toggleStatusMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
@@ -120,6 +134,7 @@ export function KarigarDetailPage({ karigar }: KarigarDetailPageProps) {
               />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
+              {karigar.designation?.name ? `${karigar.designation.name} · ` : ""}
               {karigar.party.city || "—"}
               {karigar.party.country ? `, ${karigar.party.country}` : ""} ·{" "}
               {karigar.party.contact || "—"}
@@ -294,16 +309,116 @@ export function KarigarDetailPage({ karigar }: KarigarDetailPageProps) {
                       <TableCell>{payment.piecesCompleted}</TableCell>
                       <TableCell>
                         {formatCurrency(Number(payment.amountDue))}
+                        {Number(payment.amountPaid ?? 0) > 0 &&
+                        payment.status !== "PAID" ? (
+                          <span className="block text-xs text-muted-foreground">
+                            Paid: {formatCurrency(Number(payment.amountPaid))}
+                          </span>
+                        ) : null}
                       </TableCell>
                       <TableCell>
-                        <StatusBadge
-                          label={payment.status}
-                          variant={payment.status === "PAID" ? "paid" : "pending"}
-                        />
+                        <KarigarPaymentStatusBadge status={payment.status} />
                       </TableCell>
                     </TableRow>
                   ))
                 )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 font-semibold text-slate-900">Weekly Payment Summary</h2>
+        {weeklyQuery.isLoading ? (
+          <TableSkeleton rows={3} />
+        ) : weeklyStatements.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No weekly statements yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Week</TableHead>
+                  <TableHead>Pieces</TableHead>
+                  <TableHead>Gross</TableHead>
+                  <TableHead>Paid</TableHead>
+                  <TableHead>Pending</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {weeklyStatements.map((statement) => (
+                  <TableRow key={`${statement.year}-${statement.weekNumber}`}>
+                    <TableCell className="font-medium">
+                      W{statement.weekNumber} · {statement.year}
+                    </TableCell>
+                    <TableCell>{statement.totalPieces}</TableCell>
+                    <TableCell>{formatCurrency(statement.grossAmount)}</TableCell>
+                    <TableCell>{formatCurrency(statement.paidAmount)}</TableCell>
+                    <TableCell>{formatCurrency(statement.pendingAmount)}</TableCell>
+                    <TableCell>
+                      <KarigarPaymentStatusBadge status={statement.status} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-semibold text-slate-900">Karigar Ledger</h2>
+          {ledgerQuery.data?.data ? (
+            <span className="text-sm font-medium text-slate-600">
+              Balance: {formatCurrency(ledgerQuery.data.data.closingBalance)}
+            </span>
+          ) : null}
+        </div>
+        {ledgerQuery.isLoading ? (
+          <TableSkeleton rows={4} />
+        ) : ledgerEntries.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No ledger entries yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Reference</TableHead>
+                  <TableHead>Operation</TableHead>
+                  <TableHead>Pieces</TableHead>
+                  <TableHead>Rate</TableHead>
+                  <TableHead>Debit</TableHead>
+                  <TableHead>Credit</TableHead>
+                  <TableHead>Balance</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ledgerEntries.map((entry, index) => (
+                  <TableRow key={`${entry.reference}-${index}`}>
+                    <TableCell>
+                      {new Date(entry.date).toLocaleDateString("en-IN")}
+                    </TableCell>
+                    <TableCell>{entry.reference}</TableCell>
+                    <TableCell>{entry.operation ?? "—"}</TableCell>
+                    <TableCell>{entry.pieces ?? "—"}</TableCell>
+                    <TableCell>
+                      {entry.rate != null ? formatCurrency(entry.rate) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {entry.debit > 0 ? formatCurrency(entry.debit) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {entry.credit > 0 ? formatCurrency(entry.credit) : "—"}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {formatCurrency(entry.balance)}
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>

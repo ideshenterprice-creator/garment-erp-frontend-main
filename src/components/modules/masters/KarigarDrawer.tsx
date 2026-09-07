@@ -32,6 +32,7 @@ import { getErrorMessage } from "@/lib/errorHandler";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import {
   createKarigar,
+  getDesignations,
   getKarigars,
   getOperations,
   getParties,
@@ -41,6 +42,7 @@ import {
 const karigarSchema = z
   .object({
     partyId: z.string().min(1, "Party is required"),
+    designationId: z.string().optional(),
     paymentType: z.enum(["PIECE_RATE", "WEEKLY_SALARY", "BOTH"]),
     weeklySalary: z.number().min(0).optional(),
     operationIds: z.array(z.string()).optional(),
@@ -80,6 +82,7 @@ interface KarigarDrawerProps {
 
 const defaultValues: KarigarFormValues = {
   partyId: "",
+  designationId: "",
   paymentType: "PIECE_RATE",
   weeklySalary: 0,
   operationIds: [],
@@ -134,6 +137,12 @@ export function KarigarDrawer({ open, onClose, karigar }: KarigarDrawerProps) {
     enabled: open,
   });
 
+  const designationsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.DESIGNATIONS, { isActive: true, limit: 100 }],
+    queryFn: () => getDesignations({ isActive: true, limit: 100 }),
+    enabled: open,
+  });
+
   const linkedPartyIds = useMemo(() => {
     const profiles = existingKarigarsQuery.data?.data.data ?? [];
     return new Set(profiles.map((profile) => profile.partyId));
@@ -175,6 +184,7 @@ export function KarigarDrawer({ open, onClose, karigar }: KarigarDrawerProps) {
   const dropdownsLoading =
     partiesQuery.isLoading ||
     operationsQuery.isLoading ||
+    designationsQuery.isLoading ||
     (!isEdit && existingKarigarsQuery.isLoading);
 
   const {
@@ -191,6 +201,7 @@ export function KarigarDrawer({ open, onClose, karigar }: KarigarDrawerProps) {
 
   const paymentType = watch("paymentType");
   const partyId = watch("partyId");
+  const designationId = watch("designationId");
   const operationIds = watch("operationIds") ?? [];
 
   useEffect(() => {
@@ -198,6 +209,7 @@ export function KarigarDrawer({ open, onClose, karigar }: KarigarDrawerProps) {
     if (karigar) {
       reset({
         partyId: karigar.partyId,
+        designationId: karigar.designationId ?? "",
         paymentType: karigar.paymentType,
         weeklySalary: Number(karigar.weeklySalary ?? 0),
         operationIds: karigar.operations.map((item) => item.id),
@@ -259,6 +271,7 @@ export function KarigarDrawer({ open, onClose, karigar }: KarigarDrawerProps) {
   function onSubmit(values: KarigarFormValues) {
     const payload: CreateKarigarPayload = {
       partyId: values.partyId,
+      ...(values.designationId ? { designationId: values.designationId } : {}),
       paymentType: values.paymentType,
       ...(values.paymentType === "WEEKLY_SALARY" || values.paymentType === "BOTH"
         ? { weeklySalary: values.weeklySalary }
@@ -348,6 +361,35 @@ export function KarigarDrawer({ open, onClose, karigar }: KarigarDrawerProps) {
               already linked.
             </p>
           ) : null}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label>Designation</Label>
+          <Select
+            value={designationId || "none"}
+            onValueChange={(value) =>
+              setValue("designationId", value === "none" ? "" : value, {
+                shouldValidate: true,
+              })
+            }
+            disabled={dropdownsLoading}
+          >
+            <SelectTrigger>
+              <SelectValue
+                placeholder={
+                  dropdownsLoading ? "Loading designations..." : "Select designation"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No designation</SelectItem>
+              {(designationsQuery.data?.data.data ?? []).map((designation) => (
+                <SelectItem key={designation.id} value={designation.id}>
+                  {designation.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex flex-col gap-2">

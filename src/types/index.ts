@@ -103,7 +103,7 @@ export type BundleStatus = "IN_PROGRESS" | "COMPLETED";
 
 export type SalesBillStatus = "DRAFT" | "SUBMITTED" | "PAID" | "RETURNED";
 
-export type PaymentStatus = "PENDING" | "PAID";
+export type PaymentStatus = "PENDING" | "PARTIALLY_PAID" | "PAID";
 
 export interface User {
   id: string;
@@ -203,10 +203,20 @@ export interface KarigarPartySummary {
   country?: string | null;
 }
 
+export interface Designation {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+}
+
 export interface KarigarProfile {
   id: string;
   partyId: string;
   party: KarigarPartySummary;
+  designationId?: string | null;
+  designation?: Pick<Designation, "id" | "code" | "name"> | null;
   paymentType: KarigarPaymentType;
   weeklySalary: number | null;
   isActive: boolean;
@@ -255,9 +265,55 @@ export interface CreateGSTPayload {
 
 export interface CreateKarigarPayload {
   partyId: string;
+  designationId?: string;
   paymentType: KarigarPaymentType;
   weeklySalary?: number;
   operationIds?: string[];
+}
+
+export interface KarigarStats {
+  totalKarigars: number;
+  activeKarigars: number;
+  pieceRateCount: number;
+  weeklySalaryCount: number;
+  bothCount: number;
+  pendingPaymentAmount: number;
+  pendingPaymentCount: number;
+  thisWeekPieces: number;
+  thisWeekAmount: number;
+  paidThisWeek: number;
+  weekNumber: number;
+  year: number;
+}
+
+export interface KarigarWeeklyStatement {
+  weekNumber: number;
+  year: number;
+  startDate: string;
+  endDate: string;
+  totalPieces: number;
+  grossAmount: number;
+  paidAmount: number;
+  pendingAmount: number;
+  status: PaymentStatus;
+}
+
+export interface KarigarLedgerEntry {
+  date: string;
+  reference: string;
+  operation: string | null;
+  pieces: number | null;
+  rate: number | null;
+  debit: number;
+  credit: number;
+  balance: number;
+  type: "EARNING" | "PAYMENT";
+}
+
+export interface KarigarLedger {
+  karigar: Pick<Party, "id" | "name" | "partyNumber">;
+  entries: KarigarLedgerEntry[];
+  closingBalance: number;
 }
 
 export interface AccountStatementTransaction {
@@ -1076,6 +1132,7 @@ export interface KarigarPayment {
   piecesCompleted: number;
   ratePerPiece: number;
   amountDue: number;
+  amountPaid: number;
   weekNumber: number;
   year: number;
   status: PaymentStatus;
@@ -1100,6 +1157,8 @@ export interface ConfirmKarigarPaymentPayload {
   paymentDate: string;
   paymentMode: string;
   referenceNo?: string;
+  notes?: string;
+  amountPaid?: number;
 }
 
 export type SupplierBillPayStatus = "PAID" | "PARTIAL" | "UNPAID";

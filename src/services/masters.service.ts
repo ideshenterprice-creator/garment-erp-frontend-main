@@ -6,8 +6,12 @@ import type {
   CreateOperationPayload,
   CreatePartyPayload,
   CreateProductPayload,
+  Designation,
   GSTRate,
+  KarigarLedger,
   KarigarProfile,
+  KarigarStats,
+  KarigarWeeklyStatement,
   Operation,
   Party,
   Product,
@@ -394,6 +398,38 @@ export async function deleteKarigar(
 ): Promise<ApiResponse<{ id: string; message: string }>> {
   const response = await api.delete<ApiResponse<{ id: string; message: string }>>(
     `/masters/karigars/${id}`
+  );
+  return response.data;
+}
+
+export async function getKarigarStats(): Promise<ApiResponse<KarigarStats>> {
+  const response = await api.get<ApiResponse<KarigarStats>>("/masters/karigars/stats");
+  return response.data;
+}
+
+export async function getKarigarWeeklyStatements(
+  id: string,
+  params?: ListParams
+): Promise<ApiResponse<PaginatedResponse<KarigarWeeklyStatement>>> {
+  const response = await api.get<
+    ApiResponse<PaginatedResponse<KarigarWeeklyStatement>>
+  >(`/masters/karigars/${id}/weekly-statements`, { params });
+  return response.data;
+}
+
+export async function getKarigarLedger(id: string): Promise<ApiResponse<KarigarLedger>> {
+  const response = await api.get<ApiResponse<KarigarLedger>>(
+    `/masters/karigars/${id}/ledger`
+  );
+  return response.data;
+}
+
+export async function getDesignations(
+  params?: ListParams
+): Promise<ApiResponse<PaginatedResponse<Designation>>> {
+  const response = await api.get<ApiResponse<PaginatedResponse<Designation>>>(
+    "/masters/designations",
+    { params }
   );
   return response.data;
 }

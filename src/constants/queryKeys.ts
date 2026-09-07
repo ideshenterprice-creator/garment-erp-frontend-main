@@ -3,6 +3,7 @@ export const QUERY_KEYS = {
   PRODUCTS: ["products"] as const,
   OPERATIONS: ["operations"] as const,
   GST: ["gst"] as const,
+  DESIGNATIONS: ["designations"] as const,
   KARIGARS: ["karigars"] as const,
   PURCHASE_ORDERS: ["purchase-orders"] as const,
   PURCHASE_BILLS: ["purchase-bills"] as const,

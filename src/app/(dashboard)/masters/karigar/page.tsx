@@ -18,10 +18,12 @@ import {
 import { KarigarTable } from "@/components/modules/masters/KarigarTable";
 import { KarigarDrawer } from "@/components/modules/masters/KarigarDrawer";
 import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/utils";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { getErrorMessage } from "@/lib/errorHandler";
 import {
   getKarigars,
+  getKarigarStats,
   toggleKarigarStatus,
   deleteKarigar,
 } from "@/services/masters.service";
@@ -51,25 +53,12 @@ export default function KarigarMasterPage() {
     queryFn: () => getKarigars(filters),
   });
 
-  const totalCount = useQuery({
-    queryKey: [...QUERY_KEYS.KARIGARS, { limit: 1 }],
-    queryFn: () => getKarigars({ limit: 1 }),
+  const statsQuery = useQuery({
+    queryKey: [...QUERY_KEYS.KARIGARS, "stats"],
+    queryFn: () => getKarigarStats(),
   });
-  const pieceRateCount = useQuery({
-    queryKey: [...QUERY_KEYS.KARIGARS, { paymentType: "PIECE_RATE", limit: 1 }],
-    queryFn: () => getKarigars({ paymentType: "PIECE_RATE", limit: 1 }),
-  });
-  const weeklyCount = useQuery({
-    queryKey: [
-      ...QUERY_KEYS.KARIGARS,
-      { paymentType: "WEEKLY_SALARY", limit: 1 },
-    ],
-    queryFn: () => getKarigars({ paymentType: "WEEKLY_SALARY", limit: 1 }),
-  });
-  const bothCount = useQuery({
-    queryKey: [...QUERY_KEYS.KARIGARS, { paymentType: "BOTH", limit: 1 }],
-    queryFn: () => getKarigars({ paymentType: "BOTH", limit: 1 }),
-  });
+
+  const stats = statsQuery.data?.data;
 
   const karigars = data?.data.data ?? [];
   const total = data?.data.total ?? 0;
@@ -129,25 +118,25 @@ export default function KarigarMasterPage() {
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total Karigars"
-          value={totalCount.data?.data.total ?? 0}
+          value={stats?.totalKarigars ?? 0}
           accent="purple"
           icon={<Users className="size-5" />}
         />
         <StatCard
           label="Piece Rate"
-          value={pieceRateCount.data?.data.total ?? 0}
+          value={stats?.pieceRateCount ?? 0}
           accent="blue"
           icon={<Layers className="size-5" />}
         />
         <StatCard
           label="Weekly Salary"
-          value={weeklyCount.data?.data.total ?? 0}
+          value={stats?.weeklySalaryCount ?? 0}
           accent="yellow"
           icon={<Wallet className="size-5" />}
         />
         <StatCard
-          label="Both"
-          value={bothCount.data?.data.total ?? 0}
+          label="Pending Payment"
+          value={formatCurrency(stats?.pendingPaymentAmount ?? 0)}
           accent="teal"
           icon={<Layers className="size-5" />}
         />

@@ -71,6 +71,7 @@ export function OperationsDrawer({
     handleSubmit,
     reset,
     setValue,
+    setError,
     watch,
     formState: { errors },
   } = useForm<OperationFormValues>({
@@ -99,6 +100,24 @@ export function OperationsDrawer({
     }
   }, [open, operation, reset]);
 
+  function handleSaveError(error: unknown, fallback: string) {
+    const message = getErrorMessage(error, fallback);
+    const lower = message.toLowerCase();
+    if (lower.includes("lot no") || lower.includes("duplicate_lot_no")) {
+      setError("lotNo", {
+        type: "server",
+        message: "This Lot No already exists.",
+      });
+      toast.error("This Lot No already exists.");
+      return;
+    }
+    if (lower.includes("already exists") || lower.includes("unique")) {
+      toast.error("An operation with this name already exists.");
+      return;
+    }
+    toast.error(message);
+  }
+
   const addOperationMutation = useMutation({
     mutationFn: (data: CreateOperationPayload) => createOperation(data),
     onSuccess: () => {
@@ -107,17 +126,7 @@ export function OperationsDrawer({
       onClose();
       reset(defaultValues);
     },
-    onError: (error) => {
-      const message = getErrorMessage(error, "Failed to add operation.");
-      if (
-        message.toLowerCase().includes("already exists") ||
-        message.toLowerCase().includes("unique")
-      ) {
-        toast.error("An operation with this name already exists.");
-        return;
-      }
-      toast.error(message);
-    },
+    onError: (error) => handleSaveError(error, "Failed to add operation."),
   });
 
   const editOperationMutation = useMutation({
@@ -137,9 +146,7 @@ export function OperationsDrawer({
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.OPERATIONS });
       onClose();
     },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, "Failed to update operation."));
-    },
+    onError: (error) => handleSaveError(error, "Failed to update operation."),
   });
 
   const isPending =
@@ -257,10 +264,14 @@ export function OperationsDrawer({
             placeholder="e.g. LOT-001, LOT-A"
             {...register("lotNo")}
           />
-          <p className="text-xs text-muted-foreground">
-            Optional. Used to track which production batch this operation belongs
-            to.
-          </p>
+          {errors.lotNo ? (
+            <p className="text-sm text-destructive">{errors.lotNo.message}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Optional. Must be unique. Used to track which production batch this
+              operation belongs to.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-2">

@@ -78,24 +78,29 @@ export default function KarigarPaymentsPage() {
       id,
       paymentDate,
       paymentMode,
+      amountPaid,
       referenceNo,
+      notes,
     }: {
       id: string;
       paymentDate: string;
       paymentMode: string;
+      amountPaid: number;
       referenceNo?: string;
+      notes?: string;
     }) =>
       confirmKarigarPayment(id, {
         paymentDate: toIsoDate(paymentDate),
         paymentMode,
+        amountPaid,
         referenceNo: referenceNo || undefined,
+        notes: notes || undefined,
       }),
-    onSuccess: () => {
-      const amount = recordTarget
-        ? formatCurrency(Number(recordTarget.amountDue))
-        : "";
+    onSuccess: (_, variables) => {
       const name = recordTarget?.karigar.name ?? "karigar";
-      toast.success(`Payment of ${amount} confirmed for ${name}.`);
+      toast.success(
+        `Payment of ${formatCurrency(variables.amountPaid)} confirmed for ${name}.`
+      );
       void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.KARIGAR_PAYMENTS,
       });
@@ -196,7 +201,9 @@ export default function KarigarPaymentsPage() {
             id: recordTarget.id,
             paymentDate: values.paymentDate,
             paymentMode: values.paymentMode,
+            amountPaid: values.amountPaid,
             referenceNo: values.referenceNo,
+            notes: values.notes,
           });
         }}
       />

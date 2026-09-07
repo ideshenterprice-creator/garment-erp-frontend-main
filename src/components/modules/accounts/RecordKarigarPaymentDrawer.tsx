@@ -24,6 +24,7 @@ import { formatCurrency } from "@/lib/utils";
 const schema = z.object({
   paymentDate: z.string().min(1, "Payment date is required"),
   paymentMode: z.string().min(1, "Payment mode is required"),
+  amountPaid: z.number().positive("Amount must be greater than 0"),
   referenceNo: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -45,6 +46,10 @@ export function RecordKarigarPaymentDrawer({
   onClose,
   onConfirm,
 }: RecordKarigarPaymentDrawerProps) {
+  const outstanding = payment
+    ? Number((Number(payment.amountDue) - Number(payment.amountPaid ?? 0)).toFixed(2))
+    : 0;
+
   const {
     register,
     handleSubmit,
@@ -57,6 +62,7 @@ export function RecordKarigarPaymentDrawer({
     defaultValues: {
       paymentDate: todayInputValue(),
       paymentMode: "CASH",
+      amountPaid: outstanding,
       referenceNo: "",
       notes: "",
     },
@@ -64,9 +70,13 @@ export function RecordKarigarPaymentDrawer({
 
   useEffect(() => {
     if (!open || !payment) return;
+    const pending = Number(
+      (Number(payment.amountDue) - Number(payment.amountPaid ?? 0)).toFixed(2)
+    );
     reset({
       paymentDate: todayInputValue(),
       paymentMode: "CASH",
+      amountPaid: pending,
       referenceNo: "",
       notes: "",
     });
@@ -145,17 +155,44 @@ export function RecordKarigarPaymentDrawer({
                 </span>
               </div>
               <div className="mt-2 flex items-center justify-between">
-                <span className="text-sm font-medium text-slate-700">
-                  Amount Due
-                </span>
-                <span className="text-xl font-bold text-slate-900">
+                <span className="text-sm font-medium text-slate-700">Amount Due</span>
+                <span className="font-medium">
                   {formatCurrency(Number(payment.amountDue))}
                 </span>
               </div>
-              <p className="mt-2 text-xs text-red-600">
-                Amount cannot be changed.
-              </p>
+              {Number(payment.amountPaid ?? 0) > 0 ? (
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-sm font-medium text-slate-700">Already Paid</span>
+                  <span className="font-medium">
+                    {formatCurrency(Number(payment.amountPaid))}
+                  </span>
+                </div>
+              ) : null}
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-700">Outstanding</span>
+                <span className="text-xl font-bold text-slate-900">
+                  {formatCurrency(outstanding)}
+                </span>
+              </div>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="kp-amount">Payment Amount (₹)</Label>
+            <Input
+              id="kp-amount"
+              type="number"
+              step="0.01"
+              max={outstanding}
+              {...register("amountPaid", { valueAsNumber: true })}
+            />
+            {errors.amountPaid ? (
+              <p className="text-sm text-destructive">{errors.amountPaid.message}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Enter full or partial payment up to {formatCurrency(outstanding)}.
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-2">

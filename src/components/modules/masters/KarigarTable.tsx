@@ -2,6 +2,7 @@
 
 import { Ban, Pencil, Trash2 } from "lucide-react";
 import type { KarigarProfile } from "@/types";
+import { DEPARTMENT_LABELS } from "@/types";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
@@ -133,6 +134,11 @@ export function KarigarTable({
                           className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
                         >
                           {operation.name}
+                          {operation.departmentType
+                            ? ` (${DEPARTMENT_LABELS[operation.departmentType]})`
+                            : operation.department
+                              ? ` (${operation.department})`
+                              : ""}
                         </span>
                       ))
                     )}

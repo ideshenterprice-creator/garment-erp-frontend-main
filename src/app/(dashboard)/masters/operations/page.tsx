@@ -4,7 +4,11 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
-import type { Operation, OperationStage } from "@/types";
+import type { Operation, OperationDepartment, OperationStage } from "@/types";
+import {
+  DEPARTMENT_LABELS,
+  OPERATION_DEPARTMENTS,
+} from "@/types";
 import { PageHeader, PageHeaderAction } from "@/components/common/PageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { TableSkeleton } from "@/components/common/LoadingSpinner";
@@ -17,6 +21,14 @@ import { OperationsTable } from "@/components/modules/masters/OperationsTable";
 import { OperationsDrawer } from "@/components/modules/masters/OperationsDrawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getErrorMessage } from "@/lib/errorHandler";
@@ -27,15 +39,20 @@ import {
 } from "@/services/masters.service";
 
 type StageFilter = "ALL" | OperationStage;
+type DepartmentFilter = "ALL" | OperationDepartment;
 
 const PAGE_SIZE = 10;
 
 export default function OperationsMasterPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<StageFilter>("ALL");
+  const [departmentFilter, setDepartmentFilter] =
+    useState<DepartmentFilter>("ALL");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [lotNo, setLotNo] = useState("");
   const debouncedSearch = useDebounce(search, 500);
+  const debouncedLotNo = useDebounce(lotNo, 500);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<Operation | null>(null);
   const [statusTarget, setStatusTarget] = useState<Operation | null>(null);
@@ -43,6 +60,9 @@ export default function OperationsMasterPage() {
 
   const filters = {
     stage: filter === "ALL" ? undefined : filter,
+    departmentType:
+      departmentFilter === "ALL" ? undefined : departmentFilter,
+    lotNo: debouncedLotNo || undefined,
     page,
     limit: PAGE_SIZE,
     search: debouncedSearch || undefined,
@@ -56,7 +76,11 @@ export default function OperationsMasterPage() {
   const operations = data?.data.data ?? [];
   const total = data?.data.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const filtersActive = filter !== "ALL" || Boolean(debouncedSearch);
+  const filtersActive =
+    filter !== "ALL" ||
+    departmentFilter !== "ALL" ||
+    Boolean(debouncedSearch) ||
+    Boolean(debouncedLotNo);
 
   const toggleStatusMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
@@ -87,7 +111,9 @@ export default function OperationsMasterPage() {
 
   function clearFilters() {
     setFilter("ALL");
+    setDepartmentFilter("ALL");
     setSearch("");
+    setLotNo("");
     setPage(1);
   }
 
@@ -137,17 +163,60 @@ export default function OperationsMasterPage() {
           setPage(1);
         }}
         extraActions={
-          <div className="relative w-full sm:w-64">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              placeholder="Search operations..."
-              className="pl-9"
-            />
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
+            <div className="flex w-full flex-col gap-1 sm:w-56">
+              <Label className="text-xs font-medium text-slate-500">Search</Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Search operations..."
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            <div className="flex w-full flex-col gap-1 sm:w-48">
+              <Label className="text-xs font-medium text-slate-500">
+                Department
+              </Label>
+              <Select
+                value={departmentFilter}
+                onValueChange={(value) => {
+                  setDepartmentFilter(value as DepartmentFilter);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Departments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Departments</SelectItem>
+                  {OPERATION_DEPARTMENTS.map((dept) => (
+                    <SelectItem key={dept} value={dept}>
+                      {DEPARTMENT_LABELS[dept]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex w-full flex-col gap-1 sm:w-44">
+              <Label htmlFor="lot-filter" className="text-xs font-medium text-slate-500">
+                Lot No
+              </Label>
+              <Input
+                id="lot-filter"
+                value={lotNo}
+                onChange={(event) => {
+                  setLotNo(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Filter by lot..."
+              />
+            </div>
           </div>
         }
       />

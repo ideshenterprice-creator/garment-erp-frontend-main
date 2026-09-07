@@ -7,7 +7,12 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import type { CreateOperationPayload, Operation } from "@/types";
+import type { CreateOperationPayload, Operation, OperationDepartment } from "@/types";
+import {
+  DEPARTMENT_LABELS,
+  OPERATION_DEPARTMENTS,
+  STAGE_DEPARTMENTS,
+} from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,9 +28,14 @@ import { getErrorMessage } from "@/lib/errorHandler";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { createOperation, updateOperation } from "@/services/masters.service";
 
+const departmentTypeEnum = z.enum(OPERATION_DEPARTMENTS as [OperationDepartment, ...OperationDepartment[]]);
+
 const operationSchema = z.object({
   name: z.string().min(1, "Operation name is required"),
   stage: z.enum(["CUTTING", "PRINTING", "COLORING", "STITCHING", "FINISHING"]),
+  lotNo: z.string().optional(),
+  department: z.string().optional(),
+  departmentType: departmentTypeEnum.optional(),
   ratePerPiece: z.number().min(0, "Rate is required"),
   unit: z.string().min(1, "Unit is required"),
 });
@@ -41,6 +51,9 @@ interface OperationsDrawerProps {
 const defaultValues: OperationFormValues = {
   name: "",
   stage: "CUTTING",
+  lotNo: "",
+  department: "",
+  departmentType: undefined,
   ratePerPiece: 0,
   unit: "PCS",
 };
@@ -66,6 +79,8 @@ export function OperationsDrawer({
   });
 
   const stage = watch("stage");
+  const departmentType = watch("departmentType");
+  const departmentOptions = STAGE_DEPARTMENTS[stage] ?? ["OTHER"];
 
   useEffect(() => {
     if (!open) return;
@@ -73,6 +88,9 @@ export function OperationsDrawer({
       reset({
         name: operation.name,
         stage: operation.stage,
+        lotNo: operation.lotNo ?? "",
+        department: operation.department ?? "",
+        departmentType: operation.departmentType ?? undefined,
         ratePerPiece: Number(operation.ratePerPiece),
         unit: operation.unit || "PCS",
       });
@@ -127,13 +145,20 @@ export function OperationsDrawer({
   const isPending =
     addOperationMutation.isPending || editOperationMutation.isPending;
 
-  function onSubmit(values: OperationFormValues) {
-    const payload: CreateOperationPayload = {
+  function buildPayload(values: OperationFormValues): CreateOperationPayload {
+    return {
       name: values.name,
       stage: values.stage,
       ratePerPiece: values.ratePerPiece,
       unit: values.unit,
+      lotNo: values.lotNo?.trim() || null,
+      department: values.department?.trim() || null,
+      departmentType: values.departmentType || null,
     };
+  }
+
+  function onSubmit(values: OperationFormValues) {
+    const payload = buildPayload(values);
 
     if (isEdit && operation) {
       editOperationMutation.mutate({ id: operation.id, data: payload });
@@ -204,11 +229,13 @@ export function OperationsDrawer({
           </Label>
           <Select
             value={stage}
-            onValueChange={(value) =>
+            onValueChange={(value) => {
               setValue("stage", value as OperationFormValues["stage"], {
                 shouldValidate: true,
-              })
-            }
+              });
+              setValue("departmentType", undefined);
+              setValue("department", "");
+            }}
           >
             <SelectTrigger>
               <SelectValue />
@@ -221,6 +248,61 @@ export function OperationsDrawer({
               <SelectItem value="FINISHING">Finishing</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="lotNo">Lot No</Label>
+          <Input
+            id="lotNo"
+            placeholder="e.g. LOT-001, LOT-A"
+            {...register("lotNo")}
+          />
+          <p className="text-xs text-muted-foreground">
+            Optional. Used to track which production batch this operation belongs
+            to.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label>Production Department</Label>
+          <Select
+            key={stage}
+            value={departmentType}
+            onValueChange={(value) => {
+              const next = value as OperationDepartment;
+              setValue("departmentType", next, { shouldValidate: true });
+              const currentName = watch("department") ?? "";
+              const isExistingLabel = Object.values(DEPARTMENT_LABELS).includes(
+                currentName
+              );
+              if (!currentName.trim() || isExistingLabel) {
+                setValue("department", DEPARTMENT_LABELS[next]);
+              }
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select department (optional)" />
+            </SelectTrigger>
+            <SelectContent>
+              {departmentOptions.map((dept) => (
+                <SelectItem key={dept} value={dept}>
+                  {DEPARTMENT_LABELS[dept]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="department">Department Name</Label>
+          <Input
+            id="department"
+            placeholder="Custom name e.g. 'Flatlock Machine 1'"
+            {...register("department")}
+          />
+          <p className="text-xs text-muted-foreground">
+            Optional custom name for this specific department or machine.
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

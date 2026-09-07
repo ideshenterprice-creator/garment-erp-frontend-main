@@ -25,6 +25,46 @@ export type OperationStage =
   | "STITCHING"
   | "FINISHING";
 
+export type OperationDepartment =
+  | "FLATLOCK"
+  | "OVERLOCK"
+  | "LOCK_STITCH"
+  | "IRON"
+  | "CUTTING_MACHINE"
+  | "PRINTING_MACHINE"
+  | "COLORING_MACHINE"
+  | "OTHER";
+
+export const OPERATION_DEPARTMENTS: OperationDepartment[] = [
+  "FLATLOCK",
+  "OVERLOCK",
+  "LOCK_STITCH",
+  "IRON",
+  "CUTTING_MACHINE",
+  "PRINTING_MACHINE",
+  "COLORING_MACHINE",
+  "OTHER",
+];
+
+export const DEPARTMENT_LABELS: Record<OperationDepartment, string> = {
+  FLATLOCK: "Flatlock",
+  OVERLOCK: "Overlock",
+  LOCK_STITCH: "Lock Stitch",
+  IRON: "Iron",
+  CUTTING_MACHINE: "Cutting Machine",
+  PRINTING_MACHINE: "Printing Machine",
+  COLORING_MACHINE: "Coloring Machine",
+  OTHER: "Other",
+};
+
+export const STAGE_DEPARTMENTS: Record<string, OperationDepartment[]> = {
+  CUTTING: ["CUTTING_MACHINE", "OTHER"],
+  PRINTING: ["PRINTING_MACHINE", "OTHER"],
+  COLORING: ["COLORING_MACHINE", "OTHER"],
+  STITCHING: ["FLATLOCK", "OVERLOCK", "LOCK_STITCH", "IRON", "OTHER"],
+  FINISHING: ["IRON", "OTHER"],
+};
+
 export type TaxType = "ZERO_RATED" | "IGST" | "CGST_SGST";
 
 export type KarigarPaymentType = "PIECE_RATE" | "WEEKLY_SALARY" | "BOTH";
@@ -116,6 +156,9 @@ export interface Operation {
   operationCode: string;
   name: string;
   stage: OperationStage;
+  lotNo?: string | null;
+  department?: string | null;
+  departmentType?: OperationDepartment | null;
   ratePerPiece: number;
   unit: string;
   isActive: boolean;
@@ -140,7 +183,14 @@ export interface KarigarOperation {
 /** Backend flattens join rows to operation objects on list/detail responses. */
 export type KarigarAssignedOperation = Pick<
   Operation,
-  "id" | "operationCode" | "name" | "stage" | "ratePerPiece"
+  | "id"
+  | "operationCode"
+  | "name"
+  | "stage"
+  | "ratePerPiece"
+  | "lotNo"
+  | "department"
+  | "departmentType"
 >;
 
 export interface KarigarPartySummary {
@@ -190,6 +240,9 @@ export interface CreateOperationPayload {
   stage: OperationStage;
   ratePerPiece: number;
   unit?: string;
+  lotNo?: string | null;
+  department?: string | null;
+  departmentType?: OperationDepartment | null;
 }
 
 export interface CreateGSTPayload {

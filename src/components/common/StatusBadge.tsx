@@ -25,6 +25,14 @@ type BadgeVariant =
   | "both"
   | "discontinued"
   | "tracking"
+  | "flatlock"
+  | "overlock"
+  | "lock_stitch"
+  | "iron"
+  | "cutting_machine"
+  | "printing_machine"
+  | "coloring_machine"
+  | "other_dept"
   | "default";
 
 interface StatusBadgeProps {
@@ -59,8 +67,32 @@ const variantClasses: Record<BadgeVariant, string> = {
   both: "bg-violet-100 text-violet-700",
   discontinued: "bg-orange-100 text-orange-700",
   tracking: "bg-blue-100 text-blue-700",
+  flatlock: "bg-purple-100 text-purple-700",
+  overlock: "bg-blue-100 text-blue-700",
+  lock_stitch: "bg-teal-100 text-teal-700",
+  iron: "bg-orange-100 text-orange-700",
+  cutting_machine: "bg-amber-100 text-amber-800",
+  printing_machine: "bg-pink-100 text-pink-700",
+  coloring_machine: "bg-green-100 text-green-700",
+  other_dept: "bg-slate-100 text-slate-600",
   default: "bg-slate-100 text-slate-700",
 };
+
+const DEPARTMENT_VARIANTS: Record<string, BadgeVariant> = {
+  FLATLOCK: "flatlock",
+  OVERLOCK: "overlock",
+  LOCK_STITCH: "lock_stitch",
+  IRON: "iron",
+  CUTTING_MACHINE: "cutting_machine",
+  PRINTING_MACHINE: "printing_machine",
+  COLORING_MACHINE: "coloring_machine",
+  OTHER: "other_dept",
+};
+
+export function departmentBadgeVariant(departmentType?: string | null): BadgeVariant {
+  if (!departmentType) return "other_dept";
+  return DEPARTMENT_VARIANTS[departmentType] ?? "other_dept";
+}
 
 const dotClasses: Partial<Record<BadgeVariant, string>> = {
   active: "bg-emerald-500",

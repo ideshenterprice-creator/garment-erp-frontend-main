@@ -6,8 +6,18 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { CreateStitchingPayload, Party, PurchaseOrder } from "@/types";
+import type {
+  CreateStitchingPayload,
+  OperationDepartment,
+  Party,
+  PurchaseOrder,
+} from "@/types";
+import { DEPARTMENT_LABELS, OPERATION_DEPARTMENTS } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
+import {
+  departmentBadgeVariant,
+  StatusBadge,
+} from "@/components/common/StatusBadge";
 import { KarigarPaymentBox } from "@/components/modules/production/KarigarPaymentBox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +25,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -131,6 +143,33 @@ export function RecordStitchingDrawer({
       (op) => op.stage === "STITCHING"
     );
   }, [profilesQuery.data, karigarId]);
+
+  const stitchingOpsByDepartment = useMemo(() => {
+    const grouped = new Map<
+      OperationDepartment | "UNGROUPED",
+      typeof stitchingOps
+    >();
+    for (const op of stitchingOps) {
+      const key = op.departmentType ?? "UNGROUPED";
+      const list = grouped.get(key) ?? [];
+      list.push(op);
+      grouped.set(key, list);
+    }
+    const orderedKeys: Array<OperationDepartment | "UNGROUPED"> = [
+      ...OPERATION_DEPARTMENTS,
+      "UNGROUPED",
+    ];
+    return orderedKeys
+      .filter((key) => (grouped.get(key) ?? []).length > 0)
+      .map((key) => ({
+        key,
+        label:
+          key === "UNGROUPED"
+            ? "Other Operations"
+            : `${DEPARTMENT_LABELS[key]} Operations`,
+        items: grouped.get(key) ?? [],
+      }));
+  }, [stitchingOps]);
 
   const selectedOp = stitchingOps.find((op) => op.id === operationId);
   const rate = Number(selectedOp?.ratePerPiece ?? 0);
@@ -319,10 +358,25 @@ export function RecordStitchingDrawer({
               />
             </SelectTrigger>
             <SelectContent>
-              {stitchingOps.map((op) => (
-                <SelectItem key={op.id} value={op.id}>
-                  {op.name} (₹{Number(op.ratePerPiece).toFixed(2)}/pc)
-                </SelectItem>
+              {stitchingOpsByDepartment.map((group) => (
+                <SelectGroup key={group.key}>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.items.map((op) => (
+                    <SelectItem key={op.id} value={op.id}>
+                      <span className="flex items-center gap-2">
+                        <span>
+                          {op.name} (₹{Number(op.ratePerPiece).toFixed(2)}/pc)
+                        </span>
+                        {op.departmentType ? (
+                          <StatusBadge
+                            label={DEPARTMENT_LABELS[op.departmentType]}
+                            variant={departmentBadgeVariant(op.departmentType)}
+                          />
+                        ) : null}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               ))}
             </SelectContent>
           </Select>

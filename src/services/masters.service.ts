@@ -245,8 +245,19 @@ export async function deleteProductImage(
   return response.data;
 }
 
+export type GetOperationsParams = ListParams & {
+  stage?: string;
+  department?: string;
+  departmentType?: string;
+  lotNo?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  isActive?: boolean;
+};
+
 export async function getOperations(
-  params?: ListParams
+  params?: GetOperationsParams
 ): Promise<ApiResponse<PaginatedResponse<Operation>>> {
   const response = await api.get<ApiResponse<PaginatedResponse<Operation>>>(
     "/masters/operations",

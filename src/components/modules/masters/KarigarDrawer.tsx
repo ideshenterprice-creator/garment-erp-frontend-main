@@ -6,8 +6,17 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { CreateKarigarPayload, KarigarProfile, OperationStage } from "@/types";
+import type {
+  CreateKarigarPayload,
+  KarigarProfile,
+  OperationStage,
+} from "@/types";
+import { DEPARTMENT_LABELS } from "@/types";
 import { DrawerForm } from "@/components/common/DrawerForm";
+import {
+  departmentBadgeVariant,
+  StatusBadge,
+} from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,6 +92,25 @@ const STAGE_ORDER: OperationStage[] = [
   "STITCHING",
   "FINISHING",
 ];
+
+function stageLabel(stage: OperationStage) {
+  return stage.charAt(0) + stage.slice(1).toLowerCase();
+}
+
+function stageVariant(stage: OperationStage) {
+  switch (stage) {
+    case "CUTTING":
+      return "cutting" as const;
+    case "PRINTING":
+      return "printing" as const;
+    case "COLORING":
+      return "coloring" as const;
+    case "STITCHING":
+      return "stitching" as const;
+    case "FINISHING":
+      return "finishing" as const;
+  }
+}
 
 export function KarigarDrawer({ open, onClose, karigar }: KarigarDrawerProps) {
   const isEdit = Boolean(karigar);
@@ -394,7 +422,29 @@ export function KarigarDrawer({ open, onClose, karigar }: KarigarDrawerProps) {
                               checked={checked}
                               onChange={() => toggleOperation(operation.id)}
                             />
-                            <span className="flex-1">{operation.name}</span>
+                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                              <span className="truncate">
+                                {operation.departmentType
+                                  ? `${operation.name} — ${stageLabel(operation.stage)} — ${DEPARTMENT_LABELS[operation.departmentType]}`
+                                  : `${operation.name} — ${stageLabel(operation.stage)}`}
+                              </span>
+                              <span className="flex flex-wrap items-center gap-1">
+                                <StatusBadge
+                                  label={stageLabel(operation.stage)}
+                                  variant={stageVariant(operation.stage)}
+                                />
+                                {operation.departmentType ? (
+                                  <StatusBadge
+                                    label={
+                                      DEPARTMENT_LABELS[operation.departmentType]
+                                    }
+                                    variant={departmentBadgeVariant(
+                                      operation.departmentType
+                                    )}
+                                  />
+                                ) : null}
+                              </span>
+                            </span>
                             <span className="text-xs text-muted-foreground">
                               ₹{Number(operation.ratePerPiece).toFixed(2)}
                             </span>

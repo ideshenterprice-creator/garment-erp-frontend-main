@@ -2,7 +2,11 @@
 
 import { Ban, Pencil, Trash2 } from "lucide-react";
 import type { Operation } from "@/types";
-import { StatusBadge } from "@/components/common/StatusBadge";
+import { DEPARTMENT_LABELS } from "@/types";
+import {
+  departmentBadgeVariant,
+  StatusBadge,
+} from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import {
@@ -97,7 +101,16 @@ export function OperationsTable({
                 Production Stage
               </TableHead>
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Lot No
+              </TableHead>
+              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Department
+              </TableHead>
+              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Rate (₹ / Pc)
+              </TableHead>
+              <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Unit
               </TableHead>
               <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Status
@@ -119,8 +132,24 @@ export function OperationsTable({
                     variant={stageVariant(operation.stage)}
                   />
                 </TableCell>
+                <TableCell className="text-sm text-slate-500">
+                  {operation.lotNo?.trim() ? operation.lotNo : "—"}
+                </TableCell>
+                <TableCell>
+                  {operation.departmentType ? (
+                    <StatusBadge
+                      label={DEPARTMENT_LABELS[operation.departmentType]}
+                      variant={departmentBadgeVariant(operation.departmentType)}
+                    />
+                  ) : (
+                    <span className="text-sm text-slate-400">—</span>
+                  )}
+                </TableCell>
                 <TableCell>
                   ₹ {Number(operation.ratePerPiece).toFixed(2)}
+                </TableCell>
+                <TableCell className="text-sm text-slate-600">
+                  {operation.unit || "PCS"}
                 </TableCell>
                 <TableCell>
                   <StatusBadge

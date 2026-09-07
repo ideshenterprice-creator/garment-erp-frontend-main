@@ -412,6 +412,7 @@ export interface CreatePurchaseBillPayload {
   grossWeight: number;
   tareWeight: number;
   ratePerKg: number;
+  gstPercent: number;
 }
 
 export interface PurchaseBillsSummary {
@@ -658,6 +659,7 @@ export interface CreateCuttingPayload extends SizeBreakdown {
   poId: string;
   poItemId: string;
   karigarId: string;
+  fabricIssuedKg: number;
   wastageKg: number;
 }
 

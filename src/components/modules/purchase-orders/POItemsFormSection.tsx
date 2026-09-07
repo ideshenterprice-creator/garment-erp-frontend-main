@@ -55,8 +55,6 @@ const garmentTypes = [
   "Jumper",
 ];
 
-const colors = ["White", "Blue", "Cloud Blue", "Soft Mint", "Pink", "Yellow"];
-
 function rowTotal(item: POItemFormRow): number {
   return (
     item.qty_0_3M +
@@ -73,7 +71,7 @@ export function createEmptyPOItem(): POItemFormRow {
     id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     designNumber: "",
     garmentType: "Baby Bodysuit",
-    color: "White",
+    color: "",
     qty_0_3M: 0,
     qty_3_6M: 0,
     qty_6_9M: 0,
@@ -164,23 +162,19 @@ export function POItemsFormSection({
                     </Select>
                   </TableCell>
                   <TableCell>
-                    <Select
+                    <Input
                       value={item.color}
-                      onValueChange={(value) =>
-                        updateItem(item.id, { color: value })
+                      placeholder="e.g. Navy Blue"
+                      className="h-9 w-32"
+                      onChange={(event) =>
+                        updateItem(item.id, { color: event.target.value })
                       }
-                    >
-                      <SelectTrigger className="h-9 w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {colors.map((color) => (
-                          <SelectItem key={color} value={color}>
-                            {color}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
+                    {errors[`items.${index}.color`] ? (
+                      <p className="mt-1 text-xs text-destructive">
+                        {errors[`items.${index}.color`]}
+                      </p>
+                    ) : null}
                   </TableCell>
                   {sizeFields.map((size) => (
                     <TableCell key={size.key}>

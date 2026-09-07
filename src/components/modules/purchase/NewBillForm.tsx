@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -50,6 +50,10 @@ const billSchema = z
     grossWeight: z.number().positive("Gross weight must be positive"),
     tareWeight: z.number().min(0, "Tare weight must be 0 or more"),
     ratePerKg: z.number().positive("Rate per kg must be positive"),
+    gstPercent: z
+      .number()
+      .min(0, "GST must be 0 or more")
+      .max(100, "GST cannot exceed 100%"),
   })
   .superRefine((values, ctx) => {
     if (values.grossWeight <= values.tareWeight) {
@@ -153,6 +157,7 @@ export function NewBillForm() {
       grossWeight: 0,
       tareWeight: 0,
       ratePerKg: 0,
+      gstPercent: 5,
     },
   });
 
@@ -162,6 +167,7 @@ export function NewBillForm() {
   const grossWeight = watch("grossWeight");
   const tareWeight = watch("tareWeight");
   const ratePerKg = watch("ratePerKg");
+  const gstPercent = watch("gstPercent");
 
   const selectedProduct = products.find((item) => item.id === productId);
   const selectedPO = linkedPOs.find((order) => order.id === poId);
@@ -179,8 +185,8 @@ export function NewBillForm() {
     retry: false,
   });
 
-  const gstPercent = useMemo(() => {
-    if (selectedProduct?.gstRate != null && Number(selectedProduct.gstRate) > 0) {
+  const suggestedGstPercent = useMemo(() => {
+    if (selectedProduct?.gstRate != null && Number.isFinite(Number(selectedProduct.gstRate))) {
       return Number(selectedProduct.gstRate);
     }
     const fromMaster = gstRates.find(
@@ -189,12 +195,22 @@ export function NewBillForm() {
         rate.applicableOn.toUpperCase().includes("RAW_MATERIAL") ||
         rate.applicableOn.toLowerCase().includes("purchase")
     );
-    return fromMaster ? Number(fromMaster.gstPercent) : 0;
+    return fromMaster ? Number(fromMaster.gstPercent) : null;
   }, [selectedProduct, gstRates]);
 
+  const autoFilledGstForProduct = useRef("");
+
+  useEffect(() => {
+    if (!productId || suggestedGstPercent == null) return;
+    if (autoFilledGstForProduct.current === productId) return;
+    setValue("gstPercent", suggestedGstPercent, { shouldValidate: true });
+    autoFilledGstForProduct.current = productId;
+  }, [productId, suggestedGstPercent, setValue]);
+
+  const gstRate = Number.isFinite(gstPercent) ? gstPercent : 0;
   const netWeight = Math.max(0, (grossWeight || 0) - (tareWeight || 0));
   const taxable = netWeight * (ratePerKg || 0);
-  const gstAmount = taxable * (gstPercent / 100);
+  const gstAmount = taxable * (gstRate / 100);
   const totalAmount = taxable + gstAmount;
 
   const currentStock = stockQuery.data?.data.quantity;
@@ -220,6 +236,7 @@ export function NewBillForm() {
       grossWeight: values.grossWeight,
       tareWeight: values.tareWeight,
       ratePerKg: values.ratePerKg,
+      gstPercent: values.gstPercent,
     };
   }
 
@@ -506,15 +523,17 @@ export function NewBillForm() {
                   GST (%)
                 </Label>
                 <Input
-                  value={
-                    gstQuery.isLoading
-                      ? "Loading..."
-                      : `${gstPercent}%`
-                  }
-                  readOnly
-                  disabled
-                  className="bg-slate-50"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  {...register("gstPercent", { valueAsNumber: true })}
                 />
+                {errors.gstPercent ? (
+                  <p className="text-sm text-destructive">
+                    {errors.gstPercent.message}
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -558,7 +577,7 @@ export function NewBillForm() {
               </div>
               <div className="mt-2 flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">
-                  GST Amount ({gstPercent}%)
+                  GST Amount ({gstRate}%)
                 </span>
                 <span className="font-medium">{formatCurrency(gstAmount)}</span>
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -42,6 +42,7 @@ const cuttingSchema = z
     poItemId: z.string().uuid("Design is required"),
     bundleId: z.string().uuid("Bundle is required"),
     karigarId: z.string().uuid("Karigar is required"),
+    fabricIssuedKg: z.number().min(0, "Fabric issued must be 0 or more"),
     wastageKg: z.number().min(0, "Wastage must be 0 or more"),
     qty_0_3M: z.number().min(0),
     qty_3_6M: z.number().min(0),
@@ -83,6 +84,7 @@ export function RecordCuttingDrawer({
   karigars,
 }: RecordCuttingDrawerProps) {
   const queryClient = useQueryClient();
+  const lastPrefillBundleId = useRef("");
 
   const {
     register,
@@ -99,6 +101,7 @@ export function RecordCuttingDrawer({
       poItemId: "",
       bundleId: "",
       karigarId: "",
+      fabricIssuedKg: 0,
       wastageKg: 0,
       ...emptySizeBreakdown(),
     },
@@ -156,9 +159,6 @@ export function RecordCuttingDrawer({
     );
   }, [issuesQuery.data, poItemId]);
 
-  const selectedBundle = cuttingBundles.find((b) => b.id === bundleId);
-  const fabricIssued = selectedBundle?.fabricIssued ?? 0;
-
   const cuttingOp = useMemo(() => {
     const profiles = karigarProfilesQuery.data?.data.data ?? [];
     const profile = profiles.find((p) => p.partyId === karigarId);
@@ -170,23 +170,35 @@ export function RecordCuttingDrawer({
 
   useEffect(() => {
     if (!open) return;
+    lastPrefillBundleId.current = "";
     reset({
       entryDate: todayInputValue(),
       poId: "",
       poItemId: "",
       bundleId: "",
       karigarId: "",
+      fabricIssuedKg: 0,
       wastageKg: 0,
       ...emptySizeBreakdown(),
     });
   }, [open, reset]);
 
   useEffect(() => {
-    if (!selectedBundle) return;
-    setValue("karigarId", selectedBundle.issueKarigarId, {
+    if (!bundleId) {
+      lastPrefillBundleId.current = "";
+      return;
+    }
+    if (lastPrefillBundleId.current === bundleId) return;
+    const bundle = cuttingBundles.find((item) => item.id === bundleId);
+    if (!bundle) return;
+    setValue("karigarId", bundle.issueKarigarId, {
       shouldValidate: true,
     });
-  }, [selectedBundle, setValue]);
+    setValue("fabricIssuedKg", bundle.fabricIssued, {
+      shouldValidate: true,
+    });
+    lastPrefillBundleId.current = bundleId;
+  }, [bundleId, cuttingBundles, setValue]);
 
   useEffect(() => {
     if (!poId) {
@@ -228,6 +240,7 @@ export function RecordCuttingDrawer({
       poId: values.poId,
       poItemId: values.poItemId,
       karigarId: values.karigarId,
+      fabricIssuedKg: values.fabricIssuedKg,
       wastageKg: values.wastageKg,
       qty_0_3M: values.qty_0_3M,
       qty_3_6M: values.qty_3_6M,
@@ -406,11 +419,16 @@ export function RecordCuttingDrawer({
           <div className="flex flex-col gap-2">
             <Label>Fabric Issued (kg)</Label>
             <Input
-              value={fabricIssued.toLocaleString("en-IN")}
-              readOnly
-              disabled
-              className="bg-slate-50"
+              type="number"
+              min={0}
+              step="0.01"
+              {...register("fabricIssuedKg", { valueAsNumber: true })}
             />
+            {errors.fabricIssuedKg ? (
+              <p className="text-sm text-destructive">
+                {errors.fabricIssuedKg.message}
+              </p>
+            ) : null}
           </div>
         </div>
 
